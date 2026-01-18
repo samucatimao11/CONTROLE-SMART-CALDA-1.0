@@ -92,8 +92,8 @@ function App() {
         <div className="h-20 flex items-center px-6 border-b border-gray-100">
           <img src={LOGO_URL} alt="Smart Calda Logo" className="h-10 w-auto mr-3 object-contain" />
           <div>
-            <h1 className="font-bold text-lg tracking-tight text-brand-blue-900 leading-none">SMART CALDA</h1>
-            <span className="text-xs text-brand-slate font-medium">Gestão Agrícola</span>
+            <h1 className="font-bold text-xl tracking-tight text-brand-blue-900 leading-none">SMART CALDA</h1>
+            <span className="text-[10px] font-bold text-brand-blue-500 uppercase tracking-wide block mt-0.5">SOLICITAÇÃO DE KPI</span>
           </div>
         </div>
         
@@ -154,8 +154,11 @@ function App() {
       {/* --- MOBILE TOP HEADER --- */}
       <header className="md:hidden bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-30 px-4 py-3 flex justify-between items-center">
           <div className="flex items-center">
-             <img src={LOGO_URL} alt="Logo" className="h-8 w-auto mr-2" />
-             <span className="font-bold text-brand-blue-900 tracking-tight text-sm">SMART CALDA</span>
+             <img src={LOGO_URL} alt="Logo" className="h-9 w-auto mr-2.5" />
+             <div className="flex flex-col">
+                <span className="font-bold text-brand-blue-900 tracking-tight text-sm leading-none">SMART CALDA</span>
+                <span className="text-[9px] font-bold text-brand-blue-500 uppercase tracking-wide mt-0.5">SOLICITAÇÃO DE KPI</span>
+             </div>
           </div>
           <div className="flex items-center gap-2">
              {/* Status Dot */}

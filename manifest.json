@@ -3,17 +3,18 @@
   "name": "SMART CALDA - CONTROLE DE O.S E CALDA",
   "icons": [
     {
-      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/LOGO.png",
+      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/CONTROLE%20DE%20O.S%20E%20CALDA.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/LOGO.png",
+      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/CONTROLE%20DE%20O.S%20E%20CALDA.png",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "theme_color": "#052D51",
   "background_color": "#f9fafb",

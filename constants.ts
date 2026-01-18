@@ -1,6 +1,6 @@
 import { LucideIcon, Truck, Users, UserCog, MapPin, Activity, FlaskConical, LayoutGrid, LayoutDashboard } from 'lucide-react';
 
-export const APP_NAME = "CONTROLE DE CALDA – SMART";
+export const APP_NAME = "SMART CALDA - CONTROLE DE O.S E CALDA";
 
 // URL da planilha na nuvem (Supabase Storage)
 export const EXCEL_URL = "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/ATLOS.xlsx"; 

@@ -49,7 +49,8 @@ export interface OperationVolume {
   id: string;
   liters: number;
   timestamp: string;
-  isDelivered?: boolean; // Controls Green/Yellow status and sum calculation
+  isDelivered?: boolean; // Controls calculation
+  statusLabel?: string; // "ENTREGUE", "DISPONIVEL", "SEM INFO."
   deliveryDate?: string; // Data da entrega da carga
   deliveryShift?: Shift; // Turno da entrega
 }

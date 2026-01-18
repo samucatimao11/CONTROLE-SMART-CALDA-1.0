@@ -2,22 +2,52 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#052D51" />
     <title>CONTROLE DE CALDA – SMART</title>
+    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
             colors: {
+              // Custom Palette
+              'brand-blue': {
+                DEFAULT: '#052D51', // Dark Blue
+                50: '#eef4f9',
+                100: '#cfdfea',
+                500: '#052D51',
+                900: '#02182b'
+              },
+              'brand-slate': {
+                DEFAULT: '#4B5F73', // Grey Blue
+                50: '#f5f7f9',
+                500: '#4B5F73'
+              },
+              'brand-yellow': {
+                 DEFAULT: '#EABA00', // Amber/Yellow
+                 100: '#fdf8d9',
+                 500: '#EABA00'
+              },
+              // Overriding the existing green utility to match #76B72A
               'sugar-green': {
-                50: '#f0fdf4',
-                100: '#dcfce7',
-                500: '#22c55e',
-                600: '#16a34a', // Primary Green
-                700: '#15803d',
-                800: '#166534',
-                900: '#14532d', // Deep Green
+                50: '#f4fce8',
+                100: '#e4f7cd',
+                200: '#cbee9f',
+                300: '#aee06e',
+                400: '#94d145',
+                500: '#84cc32', 
+                600: '#76B72A', // MAIN BRAND GREEN
+                700: '#5d9320',
+                800: '#4a751e',
+                900: '#3d601d', 
               }
             }
           }
@@ -27,19 +57,26 @@
   <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "uuid": "https://esm.sh/uuid@^13.0.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "uuid": "https://esm.sh/uuid@9.0.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
-    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2"
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2",
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom"
   }
 }
 </script>
+<style>
+  /* Mobile optimization adjustments */
+  body { -webkit-tap-highlight-color: transparent; }
+  input, select, button { outline: none; }
+</style>
 </head>
-  <body class="bg-gray-50 text-gray-900">
+  <body class="bg-gray-50 text-gray-900 antialiased selection:bg-brand-blue-100 selection:text-brand-blue-900">
     <div id="root"></div>
   </body>
 </html>

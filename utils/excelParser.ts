@@ -4,7 +4,6 @@ import { DataService } from '../services/dataService';
 
 export const ExcelParser = {
   readFileSystem: async (file: File): Promise<string> => {
-    // Keeps legacy support for specific Master Data sheets if user uploads separate file
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -32,10 +31,10 @@ export const ExcelParser = {
               }
             });
             
-            driversToSave.forEach(d => DataService.saveDriver(d)); // Driver list is usually small, loop is fine
+            driversToSave.forEach(d => DataService.saveDriver(d)); 
             log += `Processado ${driversToSave.length} novos motoristas.\n`;
           }
-          resolve(log || 'Arquivo processado (Verifique se abas específicas existem para carga de legado).');
+          resolve(log || 'Arquivo processado.');
         } catch (error) {
           reject(error);
         }
@@ -52,9 +51,14 @@ export const ExcelParser = {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           
-          // --- 1. PRE-PARSE SHEET 2 (Planilha 2) for Metadata (Vazão/Capacidade) ---
+          // --- Data Maps ---
           const extraDataMap = new Map<string, { flow: number, capacity: number }>();
           
+          // Map to store specific trip status: Key = "OSCODE-TRIPINDEX" (e.g. "308710-1"), Value = Label ("ENTREGUE", etc)
+          const tripStatusMap = new Map<string, string>();
+          
+          // --- 1. PRE-PARSE SHEET 2 (Planilha 2 - Horizontal Structure) ---
+          // Expects columns like: ORDEM DE SERVIÇO, 1º CARGA, 2º CARGA...
           if (workbook.SheetNames.length > 1) {
              const sheet2Name = workbook.SheetNames[1]; // Planilha 2
              const sheet2 = workbook.Sheets[sheet2Name];
@@ -65,11 +69,12 @@ export const ExcelParser = {
                 let flowVal = 0;
                 let capVal = 0;
 
+                // 1. First Pass: Identify OS and Metadata
                 for (const [key, val] of Object.entries(row)) {
-                    const k = key.toLowerCase();
+                    const k = key.toLowerCase().trim();
                     const v = String(val).trim();
                     
-                    if (k.includes('os') || k.includes('ordem') || k.includes('serviço')) {
+                    if (k.includes('ordem') || (k.includes('os') && !k.includes('prop'))) {
                         osVal = v;
                     } else if (k.includes('vaz') || k.includes('flow')) {
                         flowVal = parseFloat(v.replace(',', '.'));
@@ -79,7 +84,39 @@ export const ExcelParser = {
                 }
 
                 if (osVal) {
-                    extraDataMap.set(osVal, { flow: isNaN(flowVal) ? 0 : flowVal, capacity: isNaN(capVal) ? 0 : capVal });
+                    // Update Metadata
+                    const existingMeta = extraDataMap.get(osVal) || { flow: 0, capacity: 0 };
+                    extraDataMap.set(osVal, { 
+                        flow: flowVal > 0 ? flowVal : existingMeta.flow, 
+                        capacity: capVal > 0 ? capVal : existingMeta.capacity 
+                    });
+
+                    // 2. Second Pass: Identify Horizontal Trip Columns (1º CARGA, 2º CARGA...)
+                    for (const [key, val] of Object.entries(row)) {
+                        const k = key.toLowerCase().trim(); // e.g. "1º carga"
+                        const v = String(val).trim(); // e.g. "ENTREGUE"
+
+                        // Regex to find "1º carga", "2 carga", "3ª carga"
+                        const match = k.match(/(\d+)[ºªo]?\s*carga/);
+                        
+                        if (match) {
+                            const tripIndex = parseInt(match[1]); // Extract 1, 2, 3...
+                            
+                            let statusLabel = "SEM INFO.";
+                            const statusLower = v.toLowerCase();
+
+                            if (statusLower.includes('entregue') || statusLower.includes('ok')) {
+                                statusLabel = "ENTREGUE";
+                            } else if (statusLower.includes('disponivel') || statusLower.includes('pendente')) {
+                                statusLabel = "DISPONIVEL";
+                            } else if (v === '' || v === '-' || v === 'undefined') {
+                                statusLabel = "SEM INFO.";
+                            }
+                            
+                            // Map Key: "OSCODE-TRIPINDEX" -> "STATUS"
+                            tripStatusMap.set(`${osVal}-${tripIndex}`, statusLabel);
+                        }
+                    }
                 }
              });
           }
@@ -100,7 +137,6 @@ export const ExcelParser = {
           const seenLocationIds = new Set<string>();
           const seenSupervisorIds = new Set<string>();
           
-          // Control Set to prevent duplicate trip generation for the same OS
           const processedOsForTrips = new Set<string>();
 
           rows.forEach((row, index) => {
@@ -108,7 +144,7 @@ export const ExcelParser = {
              const osCode = String(row['C'] || ''); 
              
              if (osCode && opNum) {
-                // 1. Process Resource
+                // ... (Resource/Section/Location/Supervisor parsing remains same) ...
                 const resId = String(row['D'] || '');
                 const resName = String(row['E'] || '');
                 if (resId && !seenResourceIds.has(resId)) {
@@ -116,7 +152,6 @@ export const ExcelParser = {
                   seenResourceIds.add(resId);
                 }
 
-                // 2. Process Section
                 const secId = String(row['F'] || '');
                 const secName = String(row['G'] || '');
                 if (secId && !seenSectionIds.has(secId)) {
@@ -124,39 +159,27 @@ export const ExcelParser = {
                   seenSectionIds.add(secId);
                 }
 
-                // 3. Process Sector
                 const setId = String(row['H'] || '');
                 const setName = String(row['I'] || '');
                 if (setId && !seenLocationIds.has(setId)) {
-                   locationsToSave.push({ 
-                     id: setId, 
-                     sectorName: setName, 
-                     sectionId: secId, 
-                     farmDescription: secName 
-                   });
+                   locationsToSave.push({ id: setId, sectorName: setName, sectionId: secId });
                    seenLocationIds.add(setId);
                 }
 
-                // 4. Process Supervisor
                 const supId = String(row['J'] || '');
                 const supName = String(row['K'] || '');
                 if (supId && !seenSupervisorIds.has(supId)) {
-                   supervisorsToSave.push({ 
-                     id: supId, 
-                     name: supName, 
-                     workFront: '' 
-                   });
+                   supervisorsToSave.push({ id: supId, name: supName, workFront: '' });
                    seenSupervisorIds.add(supId);
                 }
 
-                // 5. Build Operation
-                const prod = parseFloat(String(row['L']).replace(',', '.')) || 0; // Produção (Area)
-                const dose = parseFloat(String(row['M']).replace(',', '.')) || 0; // Dose (Flow Rate)
-                const total = parseFloat(String(row['N']).replace(',', '.')) || 0; // Total (Target Volume)
+                const prod = parseFloat(String(row['L']).replace(',', '.')) || 0; 
+                const dose = parseFloat(String(row['M']).replace(',', '.')) || 0; 
+                const total = parseFloat(String(row['N']).replace(',', '.')) || 0; 
 
                 const uniqueId = `${osCode}-${resId || index}`; 
 
-                // --- NEW LOGIC: Lookup Extra Data (Planilha 2) ---
+                // --- Extra Data Lookup ---
                 const extra = extraDataMap.get(osCode);
                 const appFlow = extra?.flow || 0; 
                 const truckCap = extra?.capacity || 0;
@@ -166,34 +189,44 @@ export const ExcelParser = {
                     appTotal = prod * appFlow;
                 }
 
-                // --- NEW LOGIC: Auto Generate Trips ---
+                // --- Auto Generate Trips ---
                 const generatedVolumes: OperationVolume[] = [];
                 
-                // CRITICAL FIX: Only generate trips if we haven't processed this OS yet.
-                // An OS usually has multiple rows (one for each product/ingredient), 
-                // but they all share the SAME tank/syrup volume.
+                // Only generate if we haven't processed this OS yet to avoid duplicates
                 if (appTotal > 0 && truckCap > 0 && !processedOsForTrips.has(osCode)) {
                     let remaining = appTotal;
                     const todayStr = new Date().toISOString().split('T')[0];
                     const nowStr = new Date().toISOString();
+                    let tripCounter = 1;
 
-                    // Loop to create full loads + one partial load
                     while (remaining > 0.1) {
                         const vol = Math.min(remaining, truckCap);
                         const roundedVol = Math.round(vol * 10) / 10;
                         
+                        // Look up status in the horizontal map
+                        const mapKey = `${osCode}-${tripCounter}`;
+                        
+                        // Default to "SEM INFO." if column is missing or empty
+                        // Check if key exists in map
+                        let statusLabel = "SEM INFO.";
+                        if (tripStatusMap.has(mapKey)) {
+                             statusLabel = tripStatusMap.get(mapKey)!;
+                        }
+
+                        const isDelivered = statusLabel === "ENTREGUE";
+
                         generatedVolumes.push({
                             id: Math.random().toString(36).substr(2, 9),
                             liters: roundedVol,
                             timestamp: nowStr,
-                            isDelivered: false,
+                            isDelivered: isDelivered, 
+                            statusLabel: statusLabel, 
                             deliveryDate: todayStr,
                             deliveryShift: 'Turno A'
                         });
                         remaining -= roundedVol;
+                        tripCounter++;
                     }
-                    
-                    // Mark this OS as having its trips generated
                     processedOsForTrips.add(osCode);
                 }
 
@@ -202,30 +235,21 @@ export const ExcelParser = {
                   osCode: osCode,
                   operationNumber: opNum,
                   operationDescription: String(row['B'] || ''),
-                  
                   truckId: '',
                   truckCapacity: truckCap, 
-                  
                   driverId: '',
-                  
                   resourceId: resId,
                   resourceName: resName,
-                  
                   supervisorId: supId,
-                  
                   sectionId: secId,
                   locationId: setId,
-                  
                   productionArea: prod,
                   flowRate: dose,
                   targetVolume: total,
-                  
-                  // Independent App Data
                   applicationArea: prod,
                   applicationFlowRate: appFlow, 
                   applicationTotalVolume: parseFloat(appTotal.toFixed(2)),
-                  
-                  volumes: generatedVolumes, // Will be populated only for the FIRST row of the OS
+                  volumes: generatedVolumes, 
                   status: OperationStatus.MISTURA,
                   createdAt: new Date().toISOString()
                 };
@@ -234,17 +258,14 @@ export const ExcelParser = {
              }
           });
 
-          // Perform Batch Saves
+          // Batch Saves
           if (resourcesToSave.length > 0) DataService.saveResourcesBatch(resourcesToSave);
           if (sectionsToSave.length > 0) DataService.saveSectionsBatch(sectionsToSave);
           if (locationsToSave.length > 0) DataService.saveLocationsBatch(locationsToSave);
           supervisorsToSave.forEach(s => DataService.saveSupervisor(s));
+          if (opsToSave.length > 0) DataService.saveOperationsBatch(opsToSave);
 
-          if (opsToSave.length > 0) {
-             DataService.saveOperationsBatch(opsToSave);
-          }
-
-          resolve(`Importação Concluída com Sucesso!\n\n- ${opsToSave.length} linhas processadas\n- Viagens geradas (unificadas por OS).`);
+          resolve(`Importação Atualizada!\n- ${opsToSave.length} linhas processadas\n- Status das cargas lidos horizontalmente da Planilha 2.`);
         } catch (err) {
           console.error(err);
           reject(err);

@@ -3,9 +3,7 @@ import { Operation, Supervisor, Location, Resource, Section, OperationStatus, Op
 import { DataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { Search, Plus, FileText, Droplet, Upload, Sprout, FlaskConical, LayoutGrid, UserCog, TrendingUp, Cog, MapPin, Loader2, Edit2, Zap } from 'lucide-react';
-import { ExcelParser } from '../../utils/excelParser';
-import { EXCEL_URL } from '../../constants';
+import { Search, Plus, FileText, Droplet, Upload, Sprout, FlaskConical, LayoutGrid, UserCog, TrendingUp, Cog, MapPin, Loader2, Edit2, Zap, X } from 'lucide-react';
 
 export const OperationsModule: React.FC = () => {
   // Data State
@@ -25,6 +23,9 @@ export const OperationsModule: React.FC = () => {
   const [searchSector, setSearchSector] = useState('');
   const [searchOp, setSearchOp] = useState('');
   const [searchSup, setSearchSup] = useState('');
+  
+  // Search toggle for mobile to save space
+  const [showFilters, setShowFilters] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   
@@ -208,6 +209,7 @@ export const OperationsModule: React.FC = () => {
             liters: roundedVol,
             timestamp: new Date().toISOString(),
             isDelivered: false,
+            statusLabel: "DISPONIVEL", // Default for manual gen
             deliveryDate: osDate, // Using OS Date
             deliveryShift: currentTripShift as Shift
         });
@@ -231,8 +233,23 @@ export const OperationsModule: React.FC = () => {
     const volIndex = op.volumes.findIndex(v => v.id === volId);
 
     if (volIndex !== -1) {
-        const currentStatus = !!op.volumes[volIndex].isDelivered;
-        op.volumes[volIndex].isDelivered = !currentStatus;
+        const currentLabel = op.volumes[volIndex].statusLabel || (op.volumes[volIndex].isDelivered ? "ENTREGUE" : "DISPONIVEL");
+        
+        let newLabel = "DISPONIVEL";
+        let isDelivered = false;
+
+        // Toggle logic: If "ENTREGUE" -> "DISPONIVEL", else -> "ENTREGUE"
+        // Also resets "SEM INFO." to "ENTREGUE" if clicked (assuming manual action)
+        if (currentLabel === "ENTREGUE") {
+            newLabel = "DISPONIVEL";
+            isDelivered = false;
+        } else {
+            newLabel = "ENTREGUE";
+            isDelivered = true;
+        }
+        
+        op.volumes[volIndex].statusLabel = newLabel;
+        op.volumes[volIndex].isDelivered = isDelivered;
         
         updatedOps[opIndex] = op;
         setOperations(updatedOps);
@@ -304,38 +321,38 @@ export const OperationsModule: React.FC = () => {
     setMessage(null);
   };
 
-  const handleFetchRemoteExcel = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(EXCEL_URL);
-      if (!response.ok) {
-        throw new Error('Falha ao baixar planilha da nuvem.');
-      }
-      
-      const blob = await response.blob();
-      const file = new File([blob], "ATLOS.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      
-      // Allow UI to update loading state
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const resultMsg = await ExcelParser.readOperations(file);
-      refreshData();
-      alert(resultMsg);
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao importar planilha. Verifique sua conexão ou a URL configurada.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const getStatusColor = (s: OperationStatus) => {
     switch (s) {
-      case OperationStatus.MISTURA: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case OperationStatus.CAMINHO: return 'bg-blue-100 text-blue-800 border-blue-200';
-      case OperationStatus.CONCLUIDA: return 'bg-green-100 text-green-800 border-green-200';
+      case OperationStatus.MISTURA: return 'bg-brand-yellow-100 text-brand-yellow-500 border-brand-yellow-500';
+      case OperationStatus.CAMINHO: return 'bg-brand-blue-50 text-brand-blue-900 border-brand-blue-200';
+      case OperationStatus.CONCLUIDA: return 'bg-sugar-green-50 text-sugar-green-700 border-sugar-green-200';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+  
+  // Refined Card Styles matching screenshot
+  const getTripCardStyles = (label: string) => {
+    const l = label ? label.toUpperCase() : "SEM INFO.";
+    if (l === "ENTREGUE") {
+        return {
+            container: 'bg-sugar-green-50 border-sugar-green-200',
+            text: 'text-sugar-green-700',
+            button: 'bg-white text-black font-extrabold tracking-wide border border-transparent shadow-sm'
+        };
+    }
+    if (l === "SEM INFO.") {
+        return {
+            container: 'bg-gray-50 border-gray-200',
+            text: 'text-gray-900',
+            button: 'bg-white text-black font-extrabold tracking-wide border border-transparent shadow-sm'
+        };
+    }
+    // Disponivel
+    return {
+        container: 'bg-white border-gray-300',
+        text: 'text-gray-900',
+        button: 'bg-gray-100 text-gray-500 font-bold border border-transparent'
+    };
   };
 
   // Grouping Logic
@@ -381,36 +398,32 @@ export const OperationsModule: React.FC = () => {
 
   if (viewMode === 'form') {
     return (
-      <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
-        <div className="bg-sugar-green-600 px-6 py-4 flex justify-between items-center">
+      <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-2xl overflow-hidden mb-20">
+        <div className="bg-brand-blue-500 px-6 py-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white">
             {editingOp ? `Editando OS: ${editingOp.osCode || editingOp.id}` : 'Nova Ordem de Serviço'}
           </h2>
-          <button onClick={() => setViewMode('list')} className="text-white hover:text-green-100 text-sm font-semibold">
+          <button onClick={() => setViewMode('list')} className="text-white hover:text-brand-blue-100 text-sm font-semibold bg-brand-blue-900 px-3 py-1 rounded-lg">
             Voltar
           </button>
         </div>
         
         <form onSubmit={handleSave} className="p-6">
-          {message && (
-            <div className={`p-4 rounded mb-6 ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+           {message && (
+            <div className={`p-4 rounded mb-6 ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-sugar-green-50 text-sugar-green-700'}`}>
               {message.text}
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-             {/* Row 1: OS and Date */}
              <div className="md:col-span-1">
                 <Input label="Ordem de Serviço (OS)" value={osCode} onChange={e => setOsCode(e.target.value)} disabled={!!editingOp} placeholder="Ex: 294038" />
              </div>
              <div className="md:col-span-1">
                 <Input type="date" label="Data da OS" value={osDate} onChange={e => setOsDate(e.target.value)} />
              </div>
-             <div className="md:col-span-1">
-                {/* Spacer */}
-             </div>
+             <div className="md:col-span-1"></div>
 
-             {/* Row 2: Operation details */}
              <div className="md:col-span-1">
                  <Input label="Nº Operação" value={opNumber} onChange={e => setOpNumber(e.target.value)} placeholder="Ex: 200" />
              </div>
@@ -418,14 +431,11 @@ export const OperationsModule: React.FC = () => {
                  <Input label="Descrição da Operação" value={opDesc} onChange={e => setOpDesc(e.target.value)} placeholder="Ex: Manu Reflorestamento" />
              </div>
             
-            {/* Resources List & Edit */}
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 mb-2">
+            <div className="md:col-span-3 bg-gray-50 p-4 rounded-xl border border-gray-200 mb-2">
                 <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                   <FlaskConical size={16} className="text-sugar-green-600"/>
+                   <FlaskConical size={16} className="text-brand-blue-500"/>
                    Composição da Calda (Recursos desta OS)
                 </h4>
-                
-                {/* List of other resources in this OS */}
                 {currentOsResources.length > 0 && (
                    <div className="mb-4 overflow-x-auto bg-white rounded border border-gray-100">
                      <table className="min-w-full text-xs">
@@ -441,7 +451,7 @@ export const OperationsModule: React.FC = () => {
                            {currentOsResources.map(res => {
                              const isCurrent = res.id === editingOp?.id;
                              return (
-                               <tr key={res.id} className={`cursor-pointer transition-colors ${isCurrent ? "bg-blue-50 border-l-4 border-blue-500" : "hover:bg-gray-50"}`} onClick={() => handleEdit(res)} title="Clique para editar este produto">
+                               <tr key={res.id} className={`cursor-pointer transition-colors ${isCurrent ? "bg-brand-blue-50 border-l-4 border-brand-blue-500" : "hover:bg-gray-50"}`} onClick={() => handleEdit(res)} title="Clique para editar este produto">
                                  <td className="px-3 py-2 font-medium">{res.resourceName}</td>
                                  <td className="px-3 py-2 text-center">{res.productionArea}</td>
                                  <td className="px-3 py-2 text-center">{res.flowRate || '-'}</td>
@@ -453,8 +463,6 @@ export const OperationsModule: React.FC = () => {
                      </table>
                    </div>
                 )}
-
-                {/* Resource Specific Form */}
                 <div className="border-t pt-3 border-gray-200">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div className="md:col-span-6">
@@ -482,87 +490,31 @@ export const OperationsModule: React.FC = () => {
             <Select label="Setor" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: `${l.id} - ${l.sectorName}` }))} />
             <Select label="Encarregado (Responsável)" value={supervisorId} onChange={e => setSupervisorId(e.target.value)} options={supervisors.map(s => ({ value: s.id, label: `${s.id} - ${s.name}` }))} />
             
-            {/* Converted to Text Inputs for fluidity - ALIGNED TO FULL ROW - Added Capacity */}
             <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-               <Input 
-                 label="Caminhão / Operação" 
-                 value={truckId} 
-                 onChange={e => setTruckId(e.target.value)} 
-                 placeholder="Placa ou Nº"
-               />
-               <Input 
-                 label="Capacidade do Tanque (L)" 
-                 type="number"
-                 value={truckCapacity} 
-                 onChange={e => setTruckCapacity(e.target.value)} 
-                 placeholder="Ex: 5000"
-               />
-               <Input 
-                 label="Motorista" 
-                 value={driverId} 
-                 onChange={e => setDriverId(e.target.value)} 
-                 placeholder="Nome do motorista..."
-               />
+               <Input label="Caminhão / Operação" value={truckId} onChange={e => setTruckId(e.target.value)} placeholder="Placa ou Nº" />
+               <Input label="Capacidade do Tanque (L)" type="number" value={truckCapacity} onChange={e => setTruckCapacity(e.target.value)} placeholder="Ex: 5000" />
+               <Input label="Motorista" value={driverId} onChange={e => setDriverId(e.target.value)} placeholder="Nome do motorista..." />
             </div>
 
-            {/* APPLICATION Technical Data (Independent Blue Box) */}
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-4 rounded-lg border border-blue-100 mt-2">
-                 <h4 className="md:col-span-3 font-bold text-blue-900 text-sm uppercase mb-2 flex items-center gap-2">
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 bg-brand-blue-50 p-4 rounded-xl border border-brand-blue-100 mt-2">
+                 <h4 className="md:col-span-3 font-bold text-brand-blue-900 text-sm uppercase mb-2 flex items-center gap-2">
                     <Cog size={16}/> Dados Técnicos da Aplicação
                  </h4>
-                 <Input 
-                   label="Área Solicitada (ha)"
-                   type="number" 
-                   value={appArea} 
-                   onChange={e => setAppArea(e.target.value)} 
-                   placeholder="Ex: 20"
-                   className="border-blue-200 focus:ring-blue-500"
-                 />
-                 <Input 
-                   label="Vazão (L/ha)"
-                   type="number" 
-                   value={appFlow} 
-                   onChange={e => setAppFlow(e.target.value)} 
-                   placeholder="Digite a vazão..."
-                   className="border-blue-200 focus:ring-blue-500"
-                 />
-                  <Input 
-                   label="Total de Calda (L)"
-                   type="number" 
-                   value={appTotal} 
-                   onChange={e => setAppTotal(e.target.value)} 
-                   placeholder="Calculado automaticamente"
-                   className="border-blue-200 focus:ring-blue-500 bg-gray-50"
-                 />
+                 <Input label="Área Solicitada (ha)" type="number" value={appArea} onChange={e => setAppArea(e.target.value)} placeholder="Ex: 20" className="border-brand-blue-200 focus:ring-brand-blue-500" />
+                 <Input label="Vazão (L/ha)" type="number" value={appFlow} onChange={e => setAppFlow(e.target.value)} placeholder="Digite a vazão..." className="border-brand-blue-200 focus:ring-brand-blue-500" />
+                 <Input label="Total de Calda (L)" type="number" value={appTotal} onChange={e => setAppTotal(e.target.value)} placeholder="Calculado automaticamente" className="border-brand-blue-200 focus:ring-brand-blue-500 bg-gray-50" />
             </div>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-              <Droplet size={20} className="text-sugar-green-600"/>
-              Registro de Viagens
-            </h3>
-            
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Droplet size={20} className="text-sugar-green-600"/> Registro de Viagens</h3>
             <div className="flex flex-col md:flex-row gap-4 mb-4 items-end">
-              {/* Removed Base Date Input, using osDate */}
-              
-              <div className="flex-1">
-                 <Select 
-                    label="Turno"
-                    value={currentTripShift}
-                    onChange={e => setCurrentTripShift(e.target.value as Shift)}
-                    className="mb-0"
-                    options={[
-                        {value: 'Turno A', label: 'Turno A'},
-                        {value: 'Turno B', label: 'Turno B'},
-                        {value: 'Turno C', label: 'Turno C'},
-                    ]}
-                 />
+              <div className="flex-1 w-full">
+                 <Select label="Turno" value={currentTripShift} onChange={e => setCurrentTripShift(e.target.value as Shift)} className="mb-0" options={[{value: 'Turno A', label: 'Turno A'}, {value: 'Turno B', label: 'Turno B'}, {value: 'Turno C', label: 'Turno C'}]} />
               </div>
-              
               <div className="flex-none pb-0.5 w-full md:w-auto">
-                   <button type="button" onClick={handleGenerateTrips} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded transition flex items-center justify-center gap-2">
-                     <Zap size={18} className="text-yellow-300" /> Gerar Viagens (Auto)
+                   <button type="button" onClick={handleGenerateTrips} className="w-full md:w-auto bg-brand-blue-500 hover:bg-brand-blue-900 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2">
+                     <Zap size={18} className="text-brand-yellow-500" /> Gerar Viagens (Auto)
                    </button>
               </div>
             </div>
@@ -583,17 +535,7 @@ export const OperationsModule: React.FC = () => {
                      <tr key={vol.id} className="border-t">
                        <td className="px-4 py-2 font-bold">{idx + 1}ª</td>
                        <td className="px-4 py-2 text-gray-700">
-                         {/* Form View - Edit Date for each volume if needed */}
-                         <input 
-                           type="date" 
-                           value={vol.deliveryDate || ''} 
-                           onChange={(e) => {
-                             const newDate = e.target.value;
-                             const updatedVols = volumes.map(v => v.id === vol.id ? {...v, deliveryDate: newDate} : v);
-                             setVolumes(updatedVols);
-                           }}
-                           className="text-sm border border-gray-300 rounded px-1 py-0.5"
-                         />
+                         <input type="date" value={vol.deliveryDate || ''} onChange={(e) => { const newDate = e.target.value; const updatedVols = volumes.map(v => v.id === vol.id ? {...v, deliveryDate: newDate} : v); setVolumes(updatedVols); }} className="text-sm border border-gray-300 rounded px-1 py-0.5" />
                          <div className="text-xs text-gray-500 mt-1">{vol.deliveryShift || '-'}</div>
                        </td>
                        <td className="px-4 py-2 text-sugar-green-700 font-bold">{vol.liters} L</td>
@@ -603,23 +545,13 @@ export const OperationsModule: React.FC = () => {
                        </td>
                      </tr>
                    ))}
-                   {volumes.length === 0 && <tr><td colSpan={5} className="px-4 py-3 text-center text-gray-500">Nenhuma viagem registrada. Preencha os dados técnicos e clique em "Gerar Viagens".</td></tr>}
+                   {volumes.length === 0 && <tr><td colSpan={5} className="px-4 py-3 text-center text-gray-500">Nenhuma viagem registrada.</td></tr>}
                  </tbody>
-                 <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-200">
-                   <tr>
-                     <td className="px-4 py-3" colSpan={2}>TOTAL REALIZADO</td>
-                     <td className="px-4 py-3 text-lg text-sugar-green-800" colSpan={3}>
-                       {volumes.reduce((acc, curr) => acc + curr.liters, 0).toLocaleString()} L
-                       {appTotal && <span className="text-xs text-gray-400 font-normal ml-2">(Meta: {Number(appTotal).toLocaleString()} L)</span>}
-                     </td>
-                   </tr>
-                 </tfoot>
                </table>
             </div>
           </div>
-
           <div className="flex gap-4">
-            <button type="submit" className="flex-1 bg-sugar-green-600 text-white font-bold py-3 rounded-lg hover:bg-sugar-green-700 shadow transition">Salvar Operação</button>
+            <button type="submit" className="flex-1 bg-sugar-green-600 text-white font-bold py-3 rounded-xl hover:bg-sugar-green-700 shadow-lg transition">Salvar Operação</button>
           </div>
         </form>
       </div>
@@ -629,77 +561,80 @@ export const OperationsModule: React.FC = () => {
   // LIST VIEW
   return (
     <div className="space-y-6">
-      <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-4">
-        {/* Search Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4">
+        {/* Buttons Row */}
+        <div className="flex flex-col-reverse md:flex-row justify-end gap-3 w-full">
+            {/* Filter Toggle Mobile */}
+           <button 
+             onClick={() => setShowFilters(!showFilters)}
+             className="md:hidden flex items-center justify-center gap-2 bg-gray-100 text-gray-700 font-semibold py-3 px-4 rounded-xl"
+           >
+             <Search size={18} /> {showFilters ? 'Ocultar Filtros' : 'Filtrar OS'}
+           </button>
+
+           <button onClick={handleCreateNew} disabled={isLoading} className="flex items-center justify-center gap-2 bg-sugar-green-600 hover:bg-sugar-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-sugar-green-100 transition">
+            <Plus size={20} /> <span>Nova Operação</span>
+          </button>
+        </div>
+
+        {/* Search Grid - Hidden on mobile unless toggled */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full transition-all duration-300 ${showFilters ? 'block' : 'hidden md:grid'}`}>
             <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <input 
                     type="text" 
                     placeholder="Buscar OS..." 
-                    className="w-full pl-9 pr-3 py-2 bg-white text-black border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
                     value={searchOS}
                     onChange={(e) => setSearchOS(e.target.value)}
                 />
             </div>
             <div className="relative">
-                <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <input 
                     type="text" 
                     placeholder="Buscar Setor..." 
-                    className="w-full pl-9 pr-3 py-2 bg-white text-black border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
                     value={searchSector}
                     onChange={(e) => setSearchSector(e.target.value)}
                 />
             </div>
             <div className="relative">
-                <Cog className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Cog className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <input 
                     type="text" 
                     placeholder="Buscar Operação..." 
-                    className="w-full pl-9 pr-3 py-2 bg-white text-black border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
                     value={searchOp}
                     onChange={(e) => setSearchOp(e.target.value)}
                 />
             </div>
             <div className="relative">
-                <UserCog className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <UserCog className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <input 
                     type="text" 
                     placeholder="Buscar Encarregado..." 
-                    className="w-full pl-9 pr-3 py-2 bg-white text-black border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
                     value={searchSup}
                     onChange={(e) => setSearchSup(e.target.value)}
                 />
             </div>
         </div>
-        
-        {/* Buttons Row */}
-        <div className="flex justify-end gap-2 w-full">
-           <button 
-             onClick={handleFetchRemoteExcel}
-             className={`flex items-center justify-center gap-2 bg-green-50 text-sugar-green-700 border border-green-200 font-semibold py-2 px-4 rounded-md transition ${isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-green-100'}`}
-             disabled={isLoading}
-           >
-             {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
-             <span className="hidden sm:inline">{isLoading ? 'Baixando...' : 'Importar Planilha OS'}</span>
-           </button>
-
-           <button onClick={handleCreateNew} disabled={isLoading} className="flex items-center justify-center gap-2 bg-sugar-green-600 hover:bg-sugar-green-700 text-white font-bold py-2 px-6 rounded-md shadow transition">
-            <Plus size={20} /> <span className="hidden sm:inline">Nova Operação</span>
-          </button>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 gap-4">
         {isLoading ? (
             <div className="text-center py-20 text-gray-500">
-                <Loader2 size={48} className="animate-spin mx-auto mb-4 text-sugar-green-600" />
+                <Loader2 size={48} className="animate-spin mx-auto mb-4 text-brand-blue-500" />
                 <p className="text-lg">Processando dados da planilha...</p>
             </div>
         ) : filteredGroupKeys.length === 0 ? (
-            <div className="text-center py-20 text-gray-500">
-                <p>Nenhuma operação encontrada.</p>
+            <div className="text-center py-20 text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="mb-4 bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                    <FileText size={32} className="text-gray-300" />
+                </div>
+                <p className="font-medium">Nenhuma operação encontrada.</p>
+                <p className="text-sm">Tente ajustar os filtros ou importar novos dados.</p>
             </div>
         ) : (
             filteredGroupKeys.map(osKey => {
@@ -710,7 +645,6 @@ export const OperationsModule: React.FC = () => {
             const location = locations.find(l => l.id === primaryOp.locationId);
             const section = sections.find(s => s.id === primaryOp.sectionId);
             
-            // Priority: Manual Application Total > Sum of Products
             const appTotal = primaryOp.applicationTotalVolume || 0;
             const sumProductTotal = group.reduce((acc, item) => acc + (item.targetVolume || 0), 0);
             const totalTargetVolume = appTotal > 0 ? appTotal : sumProductTotal;
@@ -725,171 +659,131 @@ export const OperationsModule: React.FC = () => {
             const progress = totalTargetVolume > 0 ? Math.min((totalRealizedVolume / totalTargetVolume) * 100, 100) : 0;
             
             return (
-                <div key={osKey} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition duration-200 overflow-hidden">
+                <div key={osKey} className="bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-lg transition duration-300 overflow-hidden">
                 <div className="p-5">
                     {/* Header Row */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-gray-100 p-2 rounded-lg"><FileText className="text-gray-600" size={24} /></div>
-                        <div>
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-bold text-gray-900">OS: {primaryOp.osCode || primaryOp.id}</h3>
-                            {/* Removed Date from Header */}
-                        </div>
-                        </div>
-                    </div>
-                    {primaryOp.status !== OperationStatus.MISTURA && (
-                        <div className={`mt-2 md:mt-0 px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wide ${getStatusColor(primaryOp.status)}`}>{primaryOp.status}</div>
-                    )}
-                    </div>
-
-                    {/* Main Info Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mb-4 pb-4 border-b border-gray-100">
-                        {/* Supervisor (Col 2) */}
-                        <div className="md:col-span-2 flex items-center gap-2">
-                            <div className="bg-blue-50 p-2 rounded-full text-blue-600 flex-shrink-0"><UserCog size={16} /></div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] text-gray-500 uppercase font-semibold">Encarregado</p>
-                                <p className="text-xs font-bold text-gray-800 truncate" title={supervisor?.name}>{supervisor?.name || 'Não atribuído'}</p>
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-brand-blue-50 p-3 rounded-xl">
+                                <FileText className="text-brand-blue-900" size={24} />
                             </div>
-                        </div>
-                        
-                        {/* Operation (Col 3) */}
-                        <div className="md:col-span-3 flex items-center gap-2">
-                            <div className="bg-orange-50 p-2 rounded-full text-orange-600 flex-shrink-0"><Cog size={16} /></div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] text-gray-500 uppercase font-semibold">Operação</p>
-                                <div className="flex items-center gap-1">
-                                    <p className="text-sm font-bold text-gray-800">{primaryOp.operationNumber || 'N/A'}</p>
-                                    <p className="text-xs text-gray-600 truncate" title={primaryOp.operationDescription}>{primaryOp.operationDescription}</p>
+                            <div>
+                                <h3 className="text-xl font-bold text-brand-blue-900 leading-none">OS {primaryOp.osCode || primaryOp.id}</h3>
+                                <div className="text-xs text-brand-slate mt-1 flex items-center gap-1">
+                                    <Cog size={12} /> {primaryOp.operationNumber || 'N/A'} - {primaryOp.operationDescription}
                                 </div>
                             </div>
                         </div>
+                        {primaryOp.status !== OperationStatus.MISTURA && (
+                            <div className={`px-3 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(primaryOp.status)}`}>{primaryOp.status}</div>
+                        )}
+                    </div>
 
-                        {/* Section (Col 2) */}
-                        <div className="md:col-span-2 flex items-center gap-2">
-                            <div className="bg-indigo-50 p-2 rounded-full text-indigo-600 flex-shrink-0"><LayoutGrid size={16} /></div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] text-gray-500 uppercase font-semibold">Seção</p>
-                                <p className="text-sm font-bold text-gray-800">{section ? section.id : '-'}</p>
-                                <p className="text-xs text-gray-600 truncate" title={section?.name}>{section?.name}</p>
+                    {/* Main Info Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pb-4 border-b border-gray-50">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Encarregado</span>
+                            <div className="flex items-center gap-1.5">
+                                <UserCog size={14} className="text-brand-blue-500" />
+                                <span className="text-xs font-bold text-gray-700 truncate">{supervisor?.name || 'Não atribuído'}</span>
                             </div>
                         </div>
 
-                        {/* Sector (Col 3) */}
-                        <div className="md:col-span-3 flex items-center gap-2">
-                            <div className="bg-purple-50 p-2 rounded-full text-purple-600 flex-shrink-0"><MapPin size={16} /></div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] text-gray-500 uppercase font-semibold">Setor</p>
-                                <p className="text-sm font-bold text-gray-800">{location ? location.id : '-'}</p>
-                                <p className="text-xs text-gray-600 truncate" title={location?.sectorName}>{location?.sectorName}</p>
-                            </div>
+                        <div className="flex flex-col">
+                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Localização</span>
+                             <div className="flex items-center gap-1.5">
+                                <MapPin size={14} className="text-purple-500" />
+                                <span className="text-xs font-bold text-gray-700 truncate">{location ? `Setor ${location.id}` : '-'}</span>
+                             </div>
                         </div>
 
-                        {/* Production / Area (Col 2) */}
-                        <div className="md:col-span-2 flex items-center gap-2 justify-end">
-                            <div className="text-right min-w-0">
-                                <p className="text-[10px] text-gray-500 uppercase font-semibold">Produção (Área)</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">{productionValue ? productionValue.toLocaleString() : '-'} ha</p>
-                            </div>
-                            <div className="bg-green-50 p-2 rounded-full text-green-600 flex-shrink-0"><Sprout size={16} /></div>
+                         <div className="flex flex-col">
+                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Seção</span>
+                             <div className="flex items-center gap-1.5">
+                                <LayoutGrid size={14} className="text-indigo-500" />
+                                <span className="text-xs font-bold text-gray-700 truncate">{section ? section.name : '-'}</span>
+                             </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Produção</span>
+                             <div className="flex items-center gap-1.5">
+                                <Sprout size={14} className="text-sugar-green-600" />
+                                <span className="text-xs font-bold text-gray-700">{productionValue ? productionValue.toLocaleString() : '-'} ha</span>
+                             </div>
                         </div>
                     </div>
 
-                    {/* Products Table (Grouped Items) */}
-                    <div className="mb-4">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
-                        <FlaskConical size={14}/> Produtos & Recomendações (Meta Importada)
-                    </h4>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm border border-gray-100 rounded-md">
-                        <thead className="bg-gray-50">
-                            <tr>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Recurso / Produto</th>
-                            <th className="px-3 py-2 text-center font-semibold text-gray-700">Produção (ha)</th>
-                            <th className="px-3 py-2 text-center font-semibold text-gray-700">Dose (L/ha)</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Total (L)</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {group.map((item) => {
-                            const res = resources.find(r => r.id === item.resourceId);
-                            return (
-                                <tr key={item.id}>
-                                <td className="px-3 py-2 text-gray-900 font-medium">{res?.name || item.resourceName || '-'}</td>
-                                <td className="px-3 py-2 text-center text-gray-600">{item.productionArea || '-'}</td>
-                                <td className="px-3 py-2 text-center text-gray-600">{item.flowRate > 0 ? item.flowRate : '-'}</td>
-                                <td className="px-3 py-2 text-right font-bold text-gray-800">{item.targetVolume}</td>
-                                </tr>
-                            );
+                    {/* Products Table */}
+                    <div className="mb-4 bg-gray-50 rounded-xl p-3">
+                        <h4 className="text-xs font-bold text-brand-slate uppercase mb-2 flex items-center gap-1">
+                            <FlaskConical size={14}/> Produtos
+                        </h4>
+                        <div className="space-y-2">
+                             {group.map((item) => {
+                                const res = resources.find(r => r.id === item.resourceId);
+                                return (
+                                    <div key={item.id} className="flex justify-between items-center text-xs border-b border-gray-200 last:border-0 pb-1 last:pb-0">
+                                        <span className="font-medium text-gray-800">{res?.name || item.resourceName || '-'}</span>
+                                        <div className="flex gap-3 text-gray-600">
+                                            <span>{item.flowRate > 0 ? `${item.flowRate} L/ha` : '-'}</span>
+                                            <span className="font-bold">{item.targetVolume} L</span>
+                                        </div>
+                                    </div>
+                                );
                             })}
-                        </tbody>
-                        </table>
-                    </div>
+                        </div>
                     </div>
 
                     {/* Progress / Footer */}
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-3">
-                            <div className="flex-1 w-full">
-                                <p className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1 mb-1">
-                                    <TrendingUp size={14} /> Controle de Calda Entregue
+                    <div className="bg-white">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex justify-between items-end">
+                                 <p className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                                    <TrendingUp size={14} /> Entregas ({allVolumes.filter(v => v.isDelivered).length}/{allVolumes.length})
                                 </p>
-                                
-                                <div className="flex flex-wrap gap-2 mb-2">
+                                <div className="text-right">
+                                    <span className="text-xs text-gray-500 mr-2">{totalRealizedVolume.toLocaleString()} / {totalTargetVolume.toLocaleString()} L</span>
+                                    <span className={`text-xl font-bold ${progress >= 100 ? 'text-sugar-green-600' : 'text-gray-900'}`}>{progress.toFixed(0)}%</span>
+                                </div>
+                            </div>
+                        
+                            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                                <div className={`h-3 rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-sugar-green-500' : 'bg-brand-blue-500'}`} style={{ width: `${progress}%` }}></div>
+                            </div>
+
+                            {/* Trip Cards Horizontal Scroll */}
+                            <div className="flex overflow-x-auto gap-3 py-3 no-scrollbar">
                                 {allVolumes.map((vol, index) => {
                                     const isDelivered = !!vol.isDelivered;
+                                    const displayLabel = vol.statusLabel || (isDelivered ? "ENTREGUE" : "DISPONIVEL");
+                                    const styles = getTripCardStyles(displayLabel);
+                                    
                                     return (
                                         <div 
                                             key={vol.id} 
-                                            className={`flex flex-col items-center justify-between border p-2 rounded transition shadow-sm hover:shadow-md ${isDelivered ? 'bg-green-50 border-green-400' : 'bg-yellow-50 border-yellow-400'}`}
-                                            title={`Entregue em: ${vol.deliveryDate || '-'} (${vol.deliveryShift || '-'})`}
-                                            style={{ minWidth: '100px' }}
+                                            className={`flex-none w-36 flex flex-col items-center justify-between border p-3 rounded-xl transition ${styles.container}`}
                                         >
-                                            <div className="text-center mb-1">
-                                                <span className={`font-bold text-sm block ${isDelivered ? 'text-green-900' : 'text-yellow-900'}`}>{index + 1}ª Carga</span>
-                                                <span className={`text-xs font-semibold ${isDelivered ? 'text-green-800' : 'text-yellow-800'}`}>{vol.liters} L</span>
-                                            </div>
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase">{index + 1}ª Carga</span>
+                                            <span className={`text-lg font-extrabold my-2 ${styles.text}`}>
+                                                {vol.liters.toLocaleString('pt-BR')}L
+                                            </span>
                                             
-                                            {/* Date Input inside the card */}
-                                            <div className="mb-2 w-full">
-                                                <input 
-                                                    type="date"
-                                                    value={vol.deliveryDate || ''}
-                                                    onChange={(e) => handleUpdateVolumeDate(vol.opId, vol.id, e.target.value)}
-                                                    className={`w-full text-[10px] font-medium bg-transparent border-b border-gray-300 focus:border-sugar-green-500 focus:outline-none text-center ${isDelivered ? 'text-green-900' : 'text-yellow-900'}`}
-                                                />
-                                            </div>
-
                                             <button 
                                                 onClick={() => handleToggleTripStatus(vol.opId, vol.id)}
-                                                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded w-full transition-colors ${isDelivered ? 'bg-green-200 text-green-800 hover:bg-green-300' : 'bg-yellow-200 text-yellow-800 hover:bg-yellow-300'}`}
+                                                className={`text-[9px] px-2 py-1.5 rounded-md w-full transition ${styles.button}`}
                                             >
-                                                {isDelivered ? 'ENTREGUE' : 'DISPONÍVEL'}
+                                                {displayLabel}
                                             </button>
                                         </div>
                                     );
                                 })}
-                                {allVolumes.length === 0 && <span className="text-xs text-gray-400 italic">Nenhuma viagem registrada.</span>}
-                                </div>
-                            </div>
-                            <div className="text-right whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-800">
-                                    {totalRealizedVolume.toLocaleString('pt-BR')}
-                                    <span className="text-xs text-gray-500"> / {totalTargetVolume.toLocaleString('pt-BR')} L</span>
-                                </div>
-                                <span className={`text-2xl font-bold ${progress >= 100 ? 'text-green-600' : 'text-gray-700'}`}>{progress.toFixed(0)}%</span>
                             </div>
                         </div>
                         
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                            <div className={`h-2.5 rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-green-600' : 'bg-sugar-green-600'}`} style={{ width: `${progress}%` }}></div>
-                        </div>
-                        
-                        {/* New Edit Button Location */}
-                        <div className="mt-3 flex justify-end">
-                            <button onClick={() => handleEdit(primaryOp)} className="flex items-center gap-2 text-sugar-green-700 hover:text-sugar-green-800 font-bold text-sm bg-green-50 hover:bg-green-100 px-4 py-2 rounded-lg transition border border-green-200">
-                                <Edit2 size={16} /> Editar Operação
+                        <div className="mt-4 pt-3 border-t border-gray-50 flex justify-end">
+                            <button onClick={() => handleEdit(primaryOp)} className="flex items-center gap-2 text-sugar-green-700 hover:text-sugar-green-800 font-bold text-sm bg-white hover:bg-green-50 px-4 py-2 rounded-xl transition border border-green-200 shadow-sm">
+                                <Edit2 size={16} /> Editar
                             </button>
                         </div>
                     </div>

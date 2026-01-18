@@ -5,19 +5,26 @@ export const APP_NAME = "CONTROLE DE CALDA – SMART";
 // URL da planilha na nuvem (Supabase Storage)
 export const EXCEL_URL = "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/ATLOS.xlsx"; 
 
+// URL do Logotipo
+export const LOGO_URL = "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/LOGO.png";
+
 export interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
+  group: 'main' | 'cadastros';
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard }, // New
-  { id: 'operations', label: 'Operações (OS)', icon: Activity },
-  { id: 'resources', label: 'Recursos', icon: FlaskConical },
-  { id: 'sections', label: 'Seções', icon: LayoutGrid },
-  { id: 'locations', label: 'Setores', icon: MapPin },
-  { id: 'supervisors', label: 'Encarregados', icon: UserCog },
-  { id: 'drivers', label: 'Motoristas', icon: Users },
-  { id: 'fleet', label: 'Frota', icon: Truck },
+  // Grupo Principal
+  { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard, group: 'main' },
+  { id: 'operations', label: 'Operações (OS)', icon: Activity, group: 'main' },
+  
+  // Grupo Cadastros
+  { id: 'resources', label: 'Recursos', icon: FlaskConical, group: 'cadastros' },
+  { id: 'sections', label: 'Seções', icon: LayoutGrid, group: 'cadastros' },
+  { id: 'locations', label: 'Setores', icon: MapPin, group: 'cadastros' },
+  { id: 'supervisors', label: 'Encarregados', icon: UserCog, group: 'cadastros' },
+  { id: 'drivers', label: 'Motoristas', icon: Users, group: 'cadastros' },
+  { id: 'fleet', label: 'Frota', icon: Truck, group: 'cadastros' },
 ];

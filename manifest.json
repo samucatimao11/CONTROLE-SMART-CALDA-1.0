@@ -1,0 +1,21 @@
+{
+  "short_name": "Smart Calda",
+  "name": "CONTROLE DE CALDA – SMART",
+  "icons": [
+    {
+      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/LOGO.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://dkozrkzoghhylgvddkze.supabase.co/storage/v1/object/public/SMART%20CALDA/LOGO.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#052D51",
+  "background_color": "#f9fafb",
+  "orientation": "portrait"
+}

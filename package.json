@@ -16,7 +16,9 @@
     "xlsx": "latest",
     "jspdf": "2.5.1",
     "jspdf-autotable": "3.8.2",
-    "recharts": "2.12.7"
+    "recharts": "2.12.7",
+    "vite": "^7.3.1",
+    "@vitejs/plugin-react": "^5.1.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

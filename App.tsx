@@ -93,7 +93,7 @@ function App() {
           <img src={LOGO_URL} alt="Smart Calda Logo" className="h-10 w-auto mr-3 object-contain" />
           <div>
             <h1 className="font-bold text-xl tracking-tight text-brand-blue-900 leading-none">SMART CALDA</h1>
-            <span className="text-[10px] font-bold text-brand-blue-500 uppercase tracking-wide block mt-0.5">SOLICITAÇÃO DE KPI</span>
+            <span className="text-[10px] font-bold text-brand-blue-500 uppercase tracking-wide block mt-0.5">CONTROLE DE O.S E CALDA</span>
           </div>
         </div>
         
@@ -157,7 +157,7 @@ function App() {
              <img src={LOGO_URL} alt="Logo" className="h-9 w-auto mr-2.5" />
              <div className="flex flex-col">
                 <span className="font-bold text-brand-blue-900 tracking-tight text-sm leading-none">SMART CALDA</span>
-                <span className="text-[9px] font-bold text-brand-blue-500 uppercase tracking-wide mt-0.5">SOLICITAÇÃO DE KPI</span>
+                <span className="text-[9px] font-bold text-brand-blue-500 uppercase tracking-wide mt-0.5">CONTROLE DE O.S E CALDA</span>
              </div>
           </div>
           <div className="flex items-center gap-2">

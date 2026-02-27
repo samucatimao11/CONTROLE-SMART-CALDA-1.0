@@ -1,15 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NAV_ITEMS, APP_NAME, LOGO_URL } from './constants';
 import { DashboardModule } from './components/modules/Dashboard';
 import { OperationsModule } from './components/modules/Operations';
-import { SupervisorsModule } from './components/modules/Supervisors';
-import { LocationsModule } from './components/modules/Locations';
-import { ResourcesModule } from './components/modules/Resources';
-import { SectionsModule } from './components/modules/Sections';
-import { DriversModule } from './components/modules/Drivers';
-import { FleetModule } from './components/modules/Fleet';
-import { Menu, X, Leaf, Database, Upload, Loader2, LayoutDashboard, Activity, MapPin, MoreHorizontal } from 'lucide-react';
-import { ExcelParser } from './utils/excelParser';
+import { Menu, X, MoreHorizontal } from 'lucide-react';
 
 interface NavButtonProps {
   item: typeof NAV_ITEMS[0];
@@ -24,8 +17,8 @@ const NavButton: React.FC<NavButtonProps> = ({ item, isActive, onClick }) => {
           onClick={onClick}
           className={`w-full flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 mb-1
             ${isActive 
-              ? 'bg-brand-blue-50 text-brand-blue-900 border-l-4 border-brand-blue-500' 
-              : 'text-brand-slate hover:bg-gray-50 hover:text-brand-blue-900'
+              ? 'bg-brand-blue-500/10 text-brand-blue-500 border-l-4 border-brand-blue-500 shadow-glow' 
+              : 'text-brand-slate hover:bg-white/5 hover:text-brand-blue-500'
             }`}
       >
           <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-brand-blue-500' : 'text-gray-400'}`} />
@@ -34,65 +27,94 @@ const NavButton: React.FC<NavButtonProps> = ({ item, isActive, onClick }) => {
    );
 };
 
+const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
+  const [showNames, setShowNames] = useState(false);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  useEffect(() => {
+    // Show names after 1s
+    const nameTimer = setTimeout(() => {
+      setShowNames(true);
+    }, 1000);
+
+    // Start fade out after 2s (total duration)
+    const fadeTimer = setTimeout(() => {
+      setIsFadingOut(true);
+    }, 2500);
+
+    // Finish after fade out completes
+    const finishTimer = setTimeout(() => {
+      onFinish();
+    }, 3000);
+
+    return () => {
+      clearTimeout(nameTimer);
+      clearTimeout(fadeTimer);
+      clearTimeout(finishTimer);
+    };
+  }, [onFinish]);
+
+  return (
+    <div className={`fixed inset-0 z-[100] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900 via-green-950 to-black flex flex-col items-center justify-center transition-opacity duration-500 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+      
+      <div className="animate-zoom-in flex flex-col items-center relative z-10">
+        <img src={LOGO_URL} alt="Smart Calda Logo" className="h-24 w-auto mb-6 object-contain drop-shadow-[0_0_25px_rgba(34,197,94,0.4)]" />
+        <h1 className="text-3xl font-bold text-white tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-white to-green-200 drop-shadow-sm">Smart Calda</h1>
+      </div>
+      
+      <div className={`mt-8 transition-opacity duration-700 ${showNames ? 'opacity-100' : 'opacity-0'} relative z-10`}>
+        <p className="text-green-100/80 text-[10px] uppercase tracking-[0.3em] mb-3 text-center font-medium drop-shadow-sm">
+          Desenvolvido por
+        </p>
+        <div className="flex flex-col items-center gap-1">
+           <span className="text-white font-bold tracking-wide text-lg bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-200 drop-shadow-md">
+             Samuel Franco
+           </span>
+           <span className="text-green-400/80 text-xs font-bold">&</span>
+           <span className="text-white font-bold tracking-wide text-lg bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-200 drop-shadow-md">
+             Pedro Arce
+           </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const masterFileInputRef = useRef<HTMLInputElement>(null);
+  const [showSplash, setShowSplash] = useState(true);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardModule />;
       case 'operations': return <OperationsModule />;
-      case 'resources': return <ResourcesModule />;
-      case 'sections': return <SectionsModule />;
-      case 'supervisors': return <SupervisorsModule />;
-      case 'locations': return <LocationsModule />;
-      case 'drivers': return <DriversModule />;
-      case 'fleet': return <FleetModule />;
       default: return <DashboardModule />;
     }
-  };
-
-  const handleMasterDataImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsImporting(true);
-
-    setTimeout(async () => {
-        try {
-            const resultLog = await ExcelParser.readFileSystem(file);
-            alert('Importação Concluída:\n' + resultLog);
-        } catch (error) {
-            console.error(error);
-            alert('Erro ao processar planilha. Verifique o formato do arquivo.');
-        } finally {
-            setIsImporting(false);
-            if (masterFileInputRef.current) masterFileInputRef.current.value = '';
-        }
-    }, 100);
   };
 
   const activeNavItem = NAV_ITEMS.find(item => item.id === activeTab);
 
   // Mobile Bottom Nav Logic
-  // We show 3 main items + a "Menu" item that opens the full drawer
-  const PRIMARY_MOBILE_ITEMS = ['dashboard', 'operations', 'locations'];
+  const PRIMARY_MOBILE_ITEMS = ['dashboard', 'operations'];
 
   // Categorize items
   const mainItems = NAV_ITEMS.filter(i => i.group === 'main');
-  const cadastroItems = NAV_ITEMS.filter(i => i.group === 'cadastros');
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 pb-20 md:pb-0">
+    <div className="min-h-screen bg-metal-50 font-sans text-metal-900 pb-20 md:pb-0 selection:bg-brand-blue-500 selection:text-white">
       
       {/* --- DESKTOP SIDEBAR --- */}
-      <aside className="fixed inset-y-0 left-0 bg-white border-r border-gray-200 w-64 hidden md:flex flex-col z-20 shadow-sm">
-        <div className="h-20 flex items-center px-6 border-b border-gray-100">
+      <aside className="fixed inset-y-0 left-0 bg-white/80 backdrop-blur-xl border-r border-white/20 w-64 hidden md:flex flex-col z-20 shadow-xl">
+        <div className="h-20 flex items-center px-6 border-b border-gray-100/50">
           <img src={LOGO_URL} alt="Smart Calda Logo" className="h-10 w-auto mr-3 object-contain" />
           <div>
-            <h1 className="font-bold text-xl tracking-tight text-brand-blue-900 leading-none">SMART CALDA</h1>
+            <h1 className="font-bold text-xl tracking-tight text-metal-900 leading-none">SMART CALDA</h1>
             <span className="text-[10px] font-bold text-brand-blue-500 uppercase tracking-wide block mt-0.5">CONTROLE DE O.S E CALDA</span>
           </div>
         </div>
@@ -100,21 +122,8 @@ function App() {
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {/* Main Group */}
           <div className="mb-2">
-              <div className="px-4 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Geral</div>
+              <div className="px-4 mb-2 text-xs font-bold text-brand-slate-400 uppercase tracking-wider">Geral</div>
               {mainItems.map((item) => (
-                <NavButton 
-                    key={item.id} 
-                    item={item} 
-                    isActive={activeTab === item.id} 
-                    onClick={() => setActiveTab(item.id)} 
-                />
-              ))}
-          </div>
-
-          {/* Cadastros Group */}
-          <div>
-              <div className="px-4 mt-6 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Cadastros</div>
-              {cadastroItems.map((item) => (
                 <NavButton 
                     key={item.id} 
                     item={item} 
@@ -125,28 +134,10 @@ function App() {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
-            <div className="relative group">
-                <button 
-                    disabled={isImporting}
-                    className={`w-full flex items-center justify-center gap-2 bg-brand-blue-900 hover:bg-black text-white text-xs font-bold py-3 rounded-xl transition shadow-lg shadow-gray-200 ${isImporting ? 'opacity-70 cursor-wait' : ''}`}
-                >
-                    {isImporting ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
-                    {isImporting ? 'Importando...' : 'Importar Cadastros'}
-                </button>
-                {!isImporting && (
-                    <input 
-                        type="file" 
-                        ref={masterFileInputRef}
-                        onChange={handleMasterDataImport}
-                        accept=".xlsx, .xls"
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        title="Importar planilha de cadastros"
-                    />
-                )}
-            </div>
-            <div className="mt-4 text-[10px] text-gray-400 text-center font-medium">
-              v1.5 &copy; Usina Smart
+        <div className="p-4 border-t border-gray-100/50 bg-gradient-to-b from-transparent to-white/50">
+            <div className="mt-4 text-[10px] text-brand-slate-400 text-center font-medium">
+              <p>v1.5 &copy; Usina Smart</p>
+              <p className="mt-1 opacity-75">Dev: Samuel Franco & Pedro Arce</p>
             </div>
         </div>
       </aside>
@@ -156,21 +147,14 @@ function App() {
           <div className="flex items-center">
              <img src={LOGO_URL} alt="Logo" className="h-9 w-auto mr-2.5" />
              <div className="flex flex-col">
-                <span className="font-bold text-brand-blue-900 tracking-tight text-sm leading-none">SMART CALDA</span>
+                <span className="font-bold text-metal-900 tracking-tight text-sm leading-none">SMART CALDA</span>
                 <span className="text-[9px] font-bold text-brand-blue-500 uppercase tracking-wide mt-0.5">CONTROLE DE O.S E CALDA</span>
-             </div>
-          </div>
-          <div className="flex items-center gap-2">
-             {/* Status Dot */}
-             <div className="flex items-center gap-1.5 bg-sugar-green-50 px-2 py-1 rounded-full border border-sugar-green-100">
-                <div className="w-2 h-2 rounded-full bg-sugar-green-600 animate-pulse"></div>
-                <span className="text-[10px] font-bold text-sugar-green-700">ONLINE</span>
              </div>
           </div>
       </header>
 
       {/* --- MOBILE BOTTOM NAVIGATION --- */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-40 px-6 py-2 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-gray-200 pb-safe z-40 px-6 py-2 flex justify-between items-center shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
          {/* Main Items */}
          {NAV_ITEMS.filter(i => PRIMARY_MOBILE_ITEMS.includes(i.id)).map(item => {
              const Icon = item.icon;
@@ -179,7 +163,7 @@ function App() {
                  <button 
                     key={item.id}
                     onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${isActive ? 'text-brand-blue-900' : 'text-gray-400'}`}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${isActive ? 'text-brand-blue-500 drop-shadow-sm' : 'text-brand-slate-400'}`}
                  >
                      <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
                      <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
@@ -190,7 +174,7 @@ function App() {
          {/* Menu Trigger */}
          <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl text-gray-400 ${isMobileMenuOpen ? 'text-brand-blue-900' : ''}`}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl text-brand-slate-400 ${isMobileMenuOpen ? 'text-brand-blue-900' : ''}`}
          >
              <MoreHorizontal size={24} />
              <span className="text-[10px] font-medium">Menu</span>
@@ -201,20 +185,20 @@ function App() {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+            <div className="absolute inset-0 bg-metal-950/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
             
             {/* Drawer Content */}
-            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 pb-24 shadow-2xl animate-fade-in-up max-h-[85vh] overflow-y-auto">
+            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 pb-24 shadow-2xl animate-fade-in-up max-h-[85vh] overflow-y-auto ring-1 ring-white/20">
                 <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-2 border-b border-transparent">
-                    <h3 className="text-lg font-bold text-brand-blue-900">Menu Principal</h3>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-gray-100 rounded-full text-gray-600">
+                    <h3 className="text-lg font-bold text-metal-900">Menu Principal</h3>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-metal-100 rounded-full text-metal-600">
                         <X size={20} />
                     </button>
                 </div>
                 
                 {/* Main Items Grid */}
                 <div className="mb-6">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Geral</h4>
+                    <h4 className="text-xs font-bold text-brand-slate-400 uppercase tracking-wider mb-3">Geral</h4>
                     <div className="grid grid-cols-4 gap-3">
                         {mainItems.map(item => {
                             const Icon = item.icon;
@@ -223,7 +207,7 @@ function App() {
                                 <button
                                     key={item.id}
                                     onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border ${isActive ? 'bg-brand-blue-50 border-brand-blue-200 text-brand-blue-900' : 'bg-gray-50 border-gray-100 text-gray-600'}`}
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all duration-200 ${isActive ? 'bg-brand-blue-50 border-brand-blue-200 text-brand-blue-900 shadow-glow' : 'bg-metal-50 border-metal-100 text-metal-600'}`}
                                 >
                                     <Icon size={24} />
                                     <span className="text-[10px] font-medium text-center leading-tight">{item.label}</span>
@@ -233,45 +217,9 @@ function App() {
                     </div>
                 </div>
 
-                {/* Cadastros Items Grid */}
-                <div className="mb-6">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Cadastros</h4>
-                    <div className="grid grid-cols-4 gap-3">
-                        {cadastroItems.map(item => {
-                            const Icon = item.icon;
-                            const isActive = activeTab === item.id;
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border ${isActive ? 'bg-brand-blue-50 border-brand-blue-200 text-brand-blue-900' : 'bg-gray-50 border-gray-100 text-gray-600'}`}
-                                >
-                                    <Icon size={24} />
-                                    <span className="text-[10px] font-medium text-center leading-tight">{item.label.split(' ')[0]}</span>
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
-
-                <div className="border-t pt-6">
-                    <div className="relative group">
-                        <button 
-                            disabled={isImporting}
-                            className={`w-full flex items-center justify-center gap-2 bg-brand-blue-900 text-white font-bold py-3 rounded-xl ${isImporting ? 'opacity-70' : ''}`}
-                        >
-                            {isImporting ? <Loader2 size={18} className="animate-spin" /> : <Database size={18} />}
-                            {isImporting ? 'Importando...' : 'Importar Cadastros (XLSX)'}
-                        </button>
-                         {!isImporting && (
-                            <input 
-                                type="file" 
-                                onChange={handleMasterDataImport}
-                                accept=".xlsx, .xls"
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                            />
-                        )}
-                    </div>
+                <div className="border-t border-gray-100 pt-6 text-center">
+                    <p className="text-[10px] text-brand-slate-400">Desenvolvido por</p>
+                    <p className="text-xs font-bold text-green-700">Samuel Franco & Pedro Arce</p>
                 </div>
             </div>
         </div>
@@ -281,23 +229,16 @@ function App() {
       <main className="md:ml-64 p-4 md:p-8 transition-all duration-300">
         <div className="max-w-7xl mx-auto">
           {/* Desktop Title Header */}
-          <div className="hidden md:flex flex-row justify-between items-center mb-8 pb-4 border-b border-gray-200">
+          <div className="hidden md:flex flex-row justify-between items-center mb-8 pb-4 border-b border-gray-200/60">
              <div>
-               <h2 className="text-2xl font-bold text-brand-blue-900 tracking-tight">{activeNavItem?.label}</h2>
-               <p className="text-sm text-brand-slate mt-1">Visão geral e gestão operacional</p>
-             </div>
-             
-             <div className="flex items-center gap-4">
-                 <div className="flex items-center gap-2 text-sm text-brand-slate bg-white px-3 py-1.5 rounded-full border shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-sugar-green-600 animate-pulse"></span>
-                    Sistema Online
-                 </div>
+               <h2 className="text-2xl font-bold text-metal-900 tracking-tight">{activeNavItem?.label}</h2>
+               <p className="text-sm text-brand-slate-500 mt-1">Visão geral e gestão operacional</p>
              </div>
           </div>
 
           {/* Mobile Title (Smaller) */}
           <div className="md:hidden mb-6 mt-2">
-               <h2 className="text-xl font-bold text-gray-900">{activeNavItem?.label}</h2>
+               <h2 className="text-xl font-bold text-metal-900">{activeNavItem?.label}</h2>
           </div>
           
           <div className="animate-fade-in-up">

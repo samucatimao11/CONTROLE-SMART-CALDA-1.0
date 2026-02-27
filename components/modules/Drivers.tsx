@@ -75,7 +75,7 @@ export const DriversModule: React.FC = () => {
 
   const getShiftBadge = (s: Shift) => {
     switch(s) {
-      case 'Turno A': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Turno A': return 'bg-sugar-green-100 text-sugar-green-800 border-sugar-green-200';
       case 'Turno B': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'Turno C': return 'bg-purple-100 text-purple-800 border-purple-200';
       default: return 'bg-gray-100 text-gray-800';

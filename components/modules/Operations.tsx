@@ -3,7 +3,7 @@ import { Operation, Supervisor, Location, Resource, Section, OperationStatus, Op
 import { DataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { Search, Plus, FileText, Droplet, Upload, Sprout, FlaskConical, LayoutGrid, UserCog, TrendingUp, Cog, MapPin, Loader2, Edit2, Zap, X } from 'lucide-react';
+import { Search, Plus, FileText, Droplet, Upload, Sprout, FlaskConical, LayoutGrid, UserCog, TrendingUp, Cog, MapPin, Loader2, Edit2, Zap, X, Calendar, AlertCircle, ListFilter, Clock, Filter, Trash2, CheckCircle2 } from 'lucide-react';
 
 export const OperationsModule: React.FC = () => {
   // Data State
@@ -23,10 +23,9 @@ export const OperationsModule: React.FC = () => {
   const [searchSector, setSearchSector] = useState('');
   const [searchOp, setSearchOp] = useState('');
   const [searchSup, setSearchSup] = useState('');
+  const [searchSituation, setSearchSituation] = useState(''); // Filtro de Situação
+  const [searchAgeRange, setSearchAgeRange] = useState(''); // Filtro de Faixa de Dias
   
-  // Search toggle for mobile to save space
-  const [showFilters, setShowFilters] = useState(false);
-
   const [isLoading, setIsLoading] = useState(false);
   
   // --- Form State ---
@@ -37,6 +36,11 @@ export const OperationsModule: React.FC = () => {
   const [opNumber, setOpNumber] = useState('');
   const [opDesc, setOpDesc] = useState('');
   
+  // New Fields Form State (ReadOnly mostly, but kept for persistence)
+  const [issueDate, setIssueDate] = useState('');
+  const [osAge, setOsAge] = useState('');
+  const [osSituation, setOsSituation] = useState('');
+
   // Converted to free text for fluidity
   const [truckId, setTruckId] = useState(''); 
   const [truckCapacity, setTruckCapacity] = useState(''); // New State for Automation
@@ -91,6 +95,11 @@ export const OperationsModule: React.FC = () => {
     setOpNumber(op.operationNumber || '');
     setOpDesc(op.operationDescription || '');
     
+    // Load new fields
+    setIssueDate(op.issueDate || '');
+    setOsAge(op.osAge || '');
+    setOsSituation(op.osSituation || '');
+
     setTruckId(op.truckId || '');
     setTruckCapacity(op.truckCapacity ? String(op.truckCapacity) : ''); // Load capacity
     setDriverId(op.driverId || '');
@@ -121,6 +130,9 @@ export const OperationsModule: React.FC = () => {
     setOsDate(new Date().toISOString().split('T')[0]); // Default Today
     setOpNumber('');
     setOpDesc('');
+    setIssueDate('');
+    setOsAge('');
+    setOsSituation('');
     setTruckId('');
     setTruckCapacity('');
     setDriverId('');
@@ -144,6 +156,15 @@ export const OperationsModule: React.FC = () => {
     setAppTotal('');
 
     setMessage(null);
+  };
+
+  const clearFilters = () => {
+    setSearchOS('');
+    setSearchSector('');
+    setSearchOp('');
+    setSearchSup('');
+    setSearchSituation('');
+    setSearchAgeRange('');
   };
 
   // Effect: Independent Calculation for APPLICATION (Blue Box)
@@ -173,16 +194,16 @@ export const OperationsModule: React.FC = () => {
     const cap = parseFloat(truckCapacity);
 
     if (isNaN(totalVol) || totalVol <= 0) {
-        alert("O 'Total de Calda' deve ser calculado antes de gerar as viagens.");
+        setMessage({ type: 'error', text: "O 'Total de Calda' deve ser calculado antes de gerar as viagens." });
         return;
     }
     if (isNaN(cap) || cap <= 0) {
-        alert("Informe a 'Capacidade do Tanque' para calcular as frações.");
+        setMessage({ type: 'error', text: "Informe a 'Capacidade do Tanque' para calcular as frações." });
         return;
     }
     // Using osDate instead of specific trip date
     if (!osDate || !currentTripShift) {
-        alert("A Data da OS e o Turno são necessários para gerar viagens.");
+        setMessage({ type: 'error', text: "A Data da OS e o Turno são necessários para gerar viagens." });
         return;
     }
 
@@ -218,6 +239,7 @@ export const OperationsModule: React.FC = () => {
     }
 
     setVolumes(newVolumes);
+    setMessage({ type: 'success', text: `${newVolumes.length} viagens geradas com sucesso!` });
   };
 
   const handleRemoveVolume = (volId: string) => {
@@ -291,6 +313,10 @@ export const OperationsModule: React.FC = () => {
       operationNumber: opNumber,
       operationDescription: opDesc,
       
+      issueDate,
+      osAge,
+      osSituation,
+
       truckId,
       truckCapacity: truckCapacity ? parseFloat(truckCapacity) : undefined, // SAVE CAPACITY
       driverId,
@@ -330,6 +356,20 @@ export const OperationsModule: React.FC = () => {
     }
   };
   
+  // Style for the "Situation" badge
+  const getSituationBadgeStyles = (situation: string) => {
+      if (!situation) return 'bg-gray-100 text-gray-600 border-gray-200';
+      const s = situation.toLowerCase();
+      
+      if (s.includes('aberta')) {
+          return 'bg-sugar-green-100 text-sugar-green-700 border-sugar-green-200';
+      }
+      if (s.includes('fechada')) {
+          return 'bg-red-50 text-red-700 border-red-200';
+      }
+      return 'bg-gray-100 text-gray-600 border-gray-200';
+  };
+
   // Refined Card Styles matching screenshot
   const getTripCardStyles = (label: string) => {
     const l = label ? label.toUpperCase() : "SEM INFO.";
@@ -388,7 +428,26 @@ export const OperationsModule: React.FC = () => {
     const supName = supervisor ? supervisor.name.toLowerCase() : '';
     const matchSup = !searchSup || supName.includes(searchSup.toLowerCase());
 
-    return matchOS && matchSector && matchOp && matchSup;
+    // 5. Filter by Situation (Aberta/Fechada)
+    const sit = (primaryOp.osSituation || '').toLowerCase();
+    const matchSituation = !searchSituation || sit === searchSituation.toLowerCase();
+
+    // 6. Filter by Age Range (Dias O.S)
+    let matchAge = true;
+    if (searchAgeRange) {
+        const age = parseInt(primaryOp.osAge || '-1', 10);
+        // If data is invalid/missing, we exclude it if a range is selected
+        if (isNaN(age) || age < 0) {
+             matchAge = false;
+        } else {
+             if (searchAgeRange === '0-10') matchAge = age >= 0 && age <= 10;
+             else if (searchAgeRange === '11-20') matchAge = age >= 11 && age <= 20;
+             else if (searchAgeRange === '21-30') matchAge = age >= 21 && age <= 30;
+             else if (searchAgeRange === '30+') matchAge = age > 30;
+        }
+    }
+
+    return matchOS && matchSector && matchOp && matchSup && matchSituation && matchAge;
   });
 
   const currentOsResources = React.useMemo(() => {
@@ -398,31 +457,36 @@ export const OperationsModule: React.FC = () => {
 
   if (viewMode === 'form') {
     return (
-      <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-2xl overflow-hidden mb-20">
-        <div className="bg-brand-blue-500 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-white">
+      <div className="max-w-4xl mx-auto bg-white/80 backdrop-blur-xl shadow-2xl rounded-3xl overflow-hidden mb-20 border border-white/20 animate-fade-in-up">
+        <div className="bg-gradient-to-r from-brand-blue-900 to-brand-blue-500 px-8 py-6 flex justify-between items-center shadow-lg">
+          <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+            <Edit2 size={20} className="text-brand-blue-100" />
             {editingOp ? `Editando OS: ${editingOp.osCode || editingOp.id}` : 'Nova Ordem de Serviço'}
           </h2>
-          <button onClick={() => setViewMode('list')} className="text-white hover:text-brand-blue-100 text-sm font-semibold bg-brand-blue-900 px-3 py-1 rounded-lg">
+          <button onClick={() => setViewMode('list')} className="text-white hover:text-brand-blue-100 text-sm font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-all border border-white/10 backdrop-blur-sm">
             Voltar
           </button>
         </div>
         
-        <form onSubmit={handleSave} className="p-6">
+        <form onSubmit={handleSave} className="p-8">
            {message && (
-            <div className={`p-4 rounded mb-6 ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-sugar-green-50 text-sugar-green-700'}`}>
-              {message.text}
+            <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border ${message.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-sugar-green-50 text-sugar-green-700 border-sugar-green-200'}`}>
+              {message.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+              <span className="font-medium">{message.text}</span>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
              <div className="md:col-span-1">
                 <Input label="Ordem de Serviço (OS)" value={osCode} onChange={e => setOsCode(e.target.value)} disabled={!!editingOp} placeholder="Ex: 294038" />
              </div>
              <div className="md:col-span-1">
                 <Input type="date" label="Data da OS" value={osDate} onChange={e => setOsDate(e.target.value)} />
              </div>
-             <div className="md:col-span-1"></div>
+             <div className="md:col-span-1">
+                 {/* Optional: ReadOnly Fields for context */}
+                 <Input label="Situação (ERP)" value={osSituation} onChange={e => setOsSituation(e.target.value)} disabled className="bg-metal-50/50" />
+             </div>
 
              <div className="md:col-span-1">
                  <Input label="Nº Operação" value={opNumber} onChange={e => setOpNumber(e.target.value)} placeholder="Ex: 200" />
@@ -431,31 +495,33 @@ export const OperationsModule: React.FC = () => {
                  <Input label="Descrição da Operação" value={opDesc} onChange={e => setOpDesc(e.target.value)} placeholder="Ex: Manu Reflorestamento" />
              </div>
             
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-xl border border-gray-200 mb-2">
-                <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                   <FlaskConical size={16} className="text-brand-blue-500"/>
+            <div className="md:col-span-3 bg-metal-50/50 p-6 rounded-2xl border border-metal-100 mb-2 shadow-inner">
+                <h4 className="text-sm font-bold text-metal-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                   <div className="p-1.5 bg-brand-blue-100 rounded-lg text-brand-blue-600">
+                      <FlaskConical size={16} />
+                   </div>
                    Composição da Calda (Recursos desta OS)
                 </h4>
                 {currentOsResources.length > 0 && (
-                   <div className="mb-4 overflow-x-auto bg-white rounded border border-gray-100">
+                   <div className="mb-6 overflow-x-auto bg-white/60 backdrop-blur-sm rounded-xl border border-metal-200 shadow-sm">
                      <table className="min-w-full text-xs">
-                        <thead className="bg-gray-100">
+                        <thead className="bg-metal-50/80 border-b border-metal-200">
                            <tr>
-                              <th className="px-3 py-2 text-left">Produto</th>
-                              <th className="px-3 py-2 text-center">Produção (ha)</th>
-                              <th className="px-3 py-2 text-center">Dose (L/ha)</th>
-                              <th className="px-3 py-2 text-right">Total (L)</th>
+                              <th className="px-4 py-3 text-left font-bold text-metal-500 uppercase tracking-wider">Produto</th>
+                              <th className="px-4 py-3 text-center font-bold text-metal-500 uppercase tracking-wider">Produção (ha)</th>
+                              <th className="px-4 py-3 text-center font-bold text-metal-500 uppercase tracking-wider">Dose (L/ha)</th>
+                              <th className="px-4 py-3 text-right font-bold text-metal-500 uppercase tracking-wider">Total (L)</th>
                            </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-metal-100">
                            {currentOsResources.map(res => {
                              const isCurrent = res.id === editingOp?.id;
                              return (
-                               <tr key={res.id} className={`cursor-pointer transition-colors ${isCurrent ? "bg-brand-blue-50 border-l-4 border-brand-blue-500" : "hover:bg-gray-50"}`} onClick={() => handleEdit(res)} title="Clique para editar este produto">
-                                 <td className="px-3 py-2 font-medium">{res.resourceName}</td>
-                                 <td className="px-3 py-2 text-center">{res.productionArea}</td>
-                                 <td className="px-3 py-2 text-center">{res.flowRate || '-'}</td>
-                                 <td className="px-3 py-2 text-right">{res.targetVolume}</td>
+                               <tr key={res.id} className={`cursor-pointer transition-colors ${isCurrent ? "bg-brand-blue-50/50 border-l-4 border-brand-blue-500" : "hover:bg-metal-50"}`} onClick={() => handleEdit(res)} title="Clique para editar este produto">
+                                 <td className="px-4 py-3 font-medium text-metal-900">{res.resourceName}</td>
+                                 <td className="px-4 py-3 text-center text-metal-600">{res.productionArea}</td>
+                                 <td className="px-4 py-3 text-center text-metal-600">{res.flowRate || '-'}</td>
+                                 <td className="px-4 py-3 text-right font-bold text-metal-900">{res.targetVolume}</td>
                                </tr>
                              );
                            })}
@@ -463,8 +529,8 @@ export const OperationsModule: React.FC = () => {
                      </table>
                    </div>
                 )}
-                <div className="border-t pt-3 border-gray-200">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div className="border-t pt-4 border-metal-200">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                         <div className="md:col-span-6">
                             <Select 
                               label={editingOp ? "Alterar Recurso Atual" : "Adicionar Recurso"}
@@ -480,7 +546,7 @@ export const OperationsModule: React.FC = () => {
                             <Input label="Dose (L/ha)" type="number" value={resDose} onChange={e => setResDose(e.target.value)} className="mb-0 text-sm" />
                         </div>
                          <div className="md:col-span-2">
-                            <Input label="Total Prod (L)" type="number" value={resTotal} onChange={e => setResTotal(e.target.value)} className="mb-0 text-sm bg-gray-50" />
+                            <Input label="Total Prod (L)" type="number" value={resTotal} onChange={e => setResTotal(e.target.value)} className="mb-0 text-sm bg-metal-100/50" />
                         </div>
                     </div>
                 </div>
@@ -490,68 +556,78 @@ export const OperationsModule: React.FC = () => {
             <Select label="Setor" value={locationId} onChange={e => setLocationId(e.target.value)} options={locations.map(l => ({ value: l.id, label: `${l.id} - ${l.sectorName}` }))} />
             <Select label="Encarregado (Responsável)" value={supervisorId} onChange={e => setSupervisorId(e.target.value)} options={supervisors.map(s => ({ value: s.id, label: `${s.id} - ${s.name}` }))} />
             
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
                <Input label="Caminhão / Operação" value={truckId} onChange={e => setTruckId(e.target.value)} placeholder="Placa ou Nº" />
                <Input label="Capacidade do Tanque (L)" type="number" value={truckCapacity} onChange={e => setTruckCapacity(e.target.value)} placeholder="Ex: 5000" />
                <Input label="Motorista" value={driverId} onChange={e => setDriverId(e.target.value)} placeholder="Nome do motorista..." />
             </div>
 
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 bg-brand-blue-50 p-4 rounded-xl border border-brand-blue-100 mt-2">
-                 <h4 className="md:col-span-3 font-bold text-brand-blue-900 text-sm uppercase mb-2 flex items-center gap-2">
-                    <Cog size={16}/> Dados Técnicos da Aplicação
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 bg-gradient-to-br from-brand-blue-50 to-white p-6 rounded-2xl border border-brand-blue-100 mt-2 shadow-sm">
+                 <h4 className="md:col-span-3 font-bold text-brand-blue-900 text-sm uppercase mb-2 flex items-center gap-2 tracking-wide">
+                    <div className="p-1.5 bg-brand-blue-200 rounded-lg text-brand-blue-700">
+                       <Cog size={16}/> 
+                    </div>
+                    Dados Técnicos da Aplicação
                  </h4>
-                 <Input label="Área Solicitada (ha)" type="number" value={appArea} onChange={e => setAppArea(e.target.value)} placeholder="Ex: 20" className="border-brand-blue-200 focus:ring-brand-blue-500" />
-                 <Input label="Vazão (L/ha)" type="number" value={appFlow} onChange={e => setAppFlow(e.target.value)} placeholder="Digite a vazão..." className="border-brand-blue-200 focus:ring-brand-blue-500" />
-                 <Input label="Total de Calda (L)" type="number" value={appTotal} onChange={e => setAppTotal(e.target.value)} placeholder="Calculado automaticamente" className="border-brand-blue-200 focus:ring-brand-blue-500 bg-gray-50" />
+                 <Input label="Área Solicitada (ha)" type="number" value={appArea} onChange={e => setAppArea(e.target.value)} placeholder="Ex: 20" className="border-brand-blue-200 focus:ring-brand-blue-500 bg-white" />
+                 <Input label="Vazão (L/ha)" type="number" value={appFlow} onChange={e => setAppFlow(e.target.value)} placeholder="Digite a vazão..." className="border-brand-blue-200 focus:ring-brand-blue-500 bg-white" />
+                 <Input label="Total de Calda (L)" type="number" value={appTotal} onChange={e => setAppTotal(e.target.value)} placeholder="Calculado automaticamente" className="border-brand-blue-200 focus:ring-brand-blue-500 bg-brand-blue-50/50" />
             </div>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Droplet size={20} className="text-sugar-green-600"/> Registro de Viagens</h3>
-            <div className="flex flex-col md:flex-row gap-4 mb-4 items-end">
+          <div className="bg-metal-50/30 p-6 rounded-2xl border border-metal-200 mb-8">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-metal-900">
+               <div className="p-1.5 bg-sugar-green-100 rounded-lg text-sugar-green-600">
+                 <Droplet size={20} />
+               </div>
+               Registro de Viagens
+            </h3>
+            <div className="flex flex-col md:flex-row gap-6 mb-6 items-end">
               <div className="flex-1 w-full">
                  <Select label="Turno" value={currentTripShift} onChange={e => setCurrentTripShift(e.target.value as Shift)} className="mb-0" options={[{value: 'Turno A', label: 'Turno A'}, {value: 'Turno B', label: 'Turno B'}, {value: 'Turno C', label: 'Turno C'}]} />
               </div>
               <div className="flex-none pb-0.5 w-full md:w-auto">
-                   <button type="button" onClick={handleGenerateTrips} className="w-full md:w-auto bg-brand-blue-500 hover:bg-brand-blue-900 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2">
-                     <Zap size={18} className="text-brand-yellow-500" /> Gerar Viagens (Auto)
+                   <button type="button" onClick={handleGenerateTrips} className="w-full md:w-auto bg-brand-blue-500 hover:bg-brand-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-glow flex items-center justify-center gap-2 border border-transparent">
+                     <Zap size={18} className="text-brand-yellow-400 fill-current" /> Gerar Viagens (Auto)
                    </button>
               </div>
             </div>
 
-            <div className="bg-white rounded border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl border border-metal-200 overflow-hidden shadow-sm">
                <table className="min-w-full text-sm">
-                 <thead className="bg-gray-100">
+                 <thead className="bg-metal-50 border-b border-metal-200">
                    <tr>
-                     <th className="px-4 py-2 text-left">#</th>
-                     <th className="px-4 py-2 text-left">Data/Turno</th>
-                     <th className="px-4 py-2 text-left">Volume</th>
-                     <th className="px-4 py-2 text-right">Horário Registro</th>
-                     <th className="px-4 py-2"></th>
+                     <th className="px-5 py-3 text-left font-bold text-metal-500 uppercase tracking-wider text-xs">#</th>
+                     <th className="px-5 py-3 text-left font-bold text-metal-500 uppercase tracking-wider text-xs">Data/Turno</th>
+                     <th className="px-5 py-3 text-left font-bold text-metal-500 uppercase tracking-wider text-xs">Volume</th>
+                     <th className="px-5 py-3 text-right font-bold text-metal-500 uppercase tracking-wider text-xs">Horário Registro</th>
+                     <th className="px-5 py-3"></th>
                    </tr>
                  </thead>
-                 <tbody>
+                 <tbody className="divide-y divide-metal-100">
                    {volumes.map((vol, idx) => (
-                     <tr key={vol.id} className="border-t">
-                       <td className="px-4 py-2 font-bold">{idx + 1}ª</td>
-                       <td className="px-4 py-2 text-gray-700">
-                         <input type="date" value={vol.deliveryDate || ''} onChange={(e) => { const newDate = e.target.value; const updatedVols = volumes.map(v => v.id === vol.id ? {...v, deliveryDate: newDate} : v); setVolumes(updatedVols); }} className="text-sm border border-gray-300 rounded px-1 py-0.5" />
-                         <div className="text-xs text-gray-500 mt-1">{vol.deliveryShift || '-'}</div>
+                     <tr key={vol.id} className="hover:bg-metal-50/50 transition-colors">
+                       <td className="px-5 py-3 font-bold text-metal-900">{idx + 1}ª</td>
+                       <td className="px-5 py-3 text-metal-700">
+                         <input type="date" value={vol.deliveryDate || ''} onChange={(e) => { const newDate = e.target.value; const updatedVols = volumes.map(v => v.id === vol.id ? {...v, deliveryDate: newDate} : v); setVolumes(updatedVols); }} className="text-sm border border-metal-200 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-brand-blue-500/20 outline-none" />
+                         <div className="text-xs text-metal-400 mt-1 font-medium">{vol.deliveryShift || '-'}</div>
                        </td>
-                       <td className="px-4 py-2 text-sugar-green-700 font-bold">{vol.liters} L</td>
-                       <td className="px-4 py-2 text-right text-gray-500">{new Date(vol.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                       <td className="px-4 py-2 text-right">
-                         <button type="button" onClick={() => handleRemoveVolume(vol.id)} className="text-red-500 hover:text-red-700">&times;</button>
+                       <td className="px-5 py-3 text-sugar-green-600 font-bold">{vol.liters} L</td>
+                       <td className="px-5 py-3 text-right text-metal-500 font-mono">{new Date(vol.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                       <td className="px-5 py-3 text-right">
+                         <button type="button" onClick={() => handleRemoveVolume(vol.id)} className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded-lg transition-colors">
+                            <X size={16} />
+                         </button>
                        </td>
                      </tr>
                    ))}
-                   {volumes.length === 0 && <tr><td colSpan={5} className="px-4 py-3 text-center text-gray-500">Nenhuma viagem registrada.</td></tr>}
+                   {volumes.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-metal-400 italic">Nenhuma viagem registrada.</td></tr>}
                  </tbody>
                </table>
             </div>
           </div>
-          <div className="flex gap-4">
-            <button type="submit" className="flex-1 bg-sugar-green-600 text-white font-bold py-3 rounded-xl hover:bg-sugar-green-700 shadow-lg transition">Salvar Operação</button>
+          <div className="flex gap-4 pt-4 border-t border-metal-100">
+            <button type="submit" className="flex-1 bg-sugar-green-600 text-white font-bold py-4 rounded-xl hover:bg-sugar-green-500 shadow-lg hover:shadow-glow-green transition-all uppercase tracking-wide text-sm">Salvar Operação</button>
           </div>
         </form>
       </div>
@@ -560,61 +636,98 @@ export const OperationsModule: React.FC = () => {
 
   // LIST VIEW
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4">
-        {/* Buttons Row */}
-        <div className="flex flex-col-reverse md:flex-row justify-end gap-3 w-full">
-            {/* Filter Toggle Mobile */}
-           <button 
-             onClick={() => setShowFilters(!showFilters)}
-             className="md:hidden flex items-center justify-center gap-2 bg-gray-100 text-gray-700 font-semibold py-3 px-4 rounded-xl"
-           >
-             <Search size={18} /> {showFilters ? 'Ocultar Filtros' : 'Filtrar OS'}
-           </button>
-
-           <button onClick={handleCreateNew} disabled={isLoading} className="flex items-center justify-center gap-2 bg-sugar-green-600 hover:bg-sugar-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-sugar-green-100 transition">
-            <Plus size={20} /> <span>Nova Operação</span>
-          </button>
+    <div className="space-y-6 animate-fade-in-up">
+      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20">
+        <div className="flex justify-between items-center mb-6">
+             <h2 className="text-lg font-bold text-metal-900 flex items-center gap-2">
+                <div className="p-2 bg-brand-blue-50 rounded-xl text-brand-blue-500">
+                    <Filter size={20} />
+                </div>
+                Filtros Avançados
+            </h2>
+             <button 
+                onClick={clearFilters}
+                className="text-sm text-brand-slate-500 hover:text-red-500 font-medium flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
+            >
+                <X size={16} /> Limpar Filtros
+            </button>
         </div>
 
-        {/* Search Grid - Hidden on mobile unless toggled */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full transition-all duration-300 ${showFilters ? 'block' : 'hidden md:grid'}`}>
-            <div className="relative">
-                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+        {/* Search Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative group">
+                <Search className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
                 <input 
                     type="text" 
                     placeholder="Buscar OS..." 
-                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none transition-all shadow-sm focus:shadow-md hover:border-metal-300"
                     value={searchOS}
                     onChange={(e) => setSearchOS(e.target.value)}
                 />
             </div>
-            <div className="relative">
-                <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+
+            <div className="relative group">
+                <ListFilter className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
+                <select 
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none appearance-none transition-all shadow-sm focus:shadow-md cursor-pointer hover:border-metal-300"
+                    value={searchSituation}
+                    onChange={(e) => setSearchSituation(e.target.value)}
+                >
+                    <option value="">Todas Situações</option>
+                    <option value="Aberta">Aberta</option>
+                    <option value="fechada">Fechada</option>
+                </select>
+                <div className="absolute right-3 top-3.5 pointer-events-none">
+                     <svg className="w-5 h-5 text-metal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+
+             <div className="relative group">
+                <Clock className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
+                <select 
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none appearance-none transition-all shadow-sm focus:shadow-md cursor-pointer hover:border-metal-300"
+                    value={searchAgeRange}
+                    onChange={(e) => setSearchAgeRange(e.target.value)}
+                >
+                    <option value="">Todos os Períodos</option>
+                    <option value="0-10">00 à 10 dias</option>
+                    <option value="11-20">11 à 20 dias</option>
+                    <option value="21-30">21 à 30 dias</option>
+                    <option value="30+">Acima de 30 dias</option>
+                </select>
+                 <div className="absolute right-3 top-3.5 pointer-events-none">
+                     <svg className="w-5 h-5 text-metal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+
+            <div className="relative group">
+                <MapPin className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
                 <input 
                     type="text" 
                     placeholder="Buscar Setor..." 
-                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none transition-all shadow-sm focus:shadow-md hover:border-metal-300"
                     value={searchSector}
                     onChange={(e) => setSearchSector(e.target.value)}
                 />
             </div>
-            <div className="relative">
-                <Cog className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+
+            <div className="relative group">
+                <Cog className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
                 <input 
                     type="text" 
                     placeholder="Buscar Operação..." 
-                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none transition-all shadow-sm focus:shadow-md hover:border-metal-300"
                     value={searchOp}
                     onChange={(e) => setSearchOp(e.target.value)}
                 />
             </div>
-            <div className="relative">
-                <UserCog className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+
+            <div className="relative group">
+                <UserCog className="absolute left-4 top-3.5 h-5 w-5 text-metal-400 group-focus-within:text-brand-blue-500 transition-colors" />
                 <input 
                     type="text" 
                     placeholder="Buscar Encarregado..." 
-                    className="w-full pl-10 pr-3 py-3 bg-gray-50 text-black border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sugar-green-500 focus:border-transparent outline-none"
+                    className="w-full pl-11 pr-4 py-3 bg-white/50 backdrop-blur-sm text-metal-900 border border-metal-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue-500/50 focus:border-brand-blue-500 outline-none transition-all shadow-sm focus:shadow-md hover:border-metal-300"
                     value={searchSup}
                     onChange={(e) => setSearchSup(e.target.value)}
                 />
@@ -624,17 +737,17 @@ export const OperationsModule: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-4">
         {isLoading ? (
-            <div className="text-center py-20 text-gray-500">
+            <div className="text-center py-20 text-metal-500">
                 <Loader2 size={48} className="animate-spin mx-auto mb-4 text-brand-blue-500" />
-                <p className="text-lg">Processando dados da planilha...</p>
+                <p className="text-lg font-medium">Processando dados da planilha...</p>
             </div>
         ) : filteredGroupKeys.length === 0 ? (
-            <div className="text-center py-20 text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="mb-4 bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-                    <FileText size={32} className="text-gray-300" />
+            <div className="text-center py-20 text-metal-500 bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-sm">
+                <div className="mb-4 bg-metal-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                    <FileText size={32} className="text-metal-300" />
                 </div>
-                <p className="font-medium">Nenhuma operação encontrada.</p>
-                <p className="text-sm">Tente ajustar os filtros ou importar novos dados.</p>
+                <p className="font-bold text-lg text-metal-700">Nenhuma operação encontrada.</p>
+                <p className="text-sm text-metal-400">Tente ajustar os filtros ou importar novos dados.</p>
             </div>
         ) : (
             filteredGroupKeys.map(osKey => {
@@ -659,75 +772,99 @@ export const OperationsModule: React.FC = () => {
             const progress = totalTargetVolume > 0 ? Math.min((totalRealizedVolume / totalTargetVolume) * 100, 100) : 0;
             
             return (
-                <div key={osKey} className="bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-lg transition duration-300 overflow-hidden">
-                <div className="p-5">
+                <div key={osKey} className="bg-white/80 backdrop-blur-xl border border-white/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-brand-blue-500/30 transition duration-300 overflow-hidden group">
+                <div className="p-6">
                     {/* Header Row */}
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-brand-blue-50 p-3 rounded-xl">
-                                <FileText className="text-brand-blue-900" size={24} />
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-6 gap-4">
+                        <div className="flex items-start gap-4">
+                            <div className="bg-gradient-to-br from-brand-blue-500 to-brand-blue-700 p-3.5 rounded-2xl shadow-lg shadow-brand-blue-500/20 text-white">
+                                <FileText size={24} />
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-brand-blue-900 leading-none">OS {primaryOp.osCode || primaryOp.id}</h3>
-                                <div className="text-xs text-brand-slate mt-1 flex items-center gap-1">
-                                    <Cog size={12} /> {primaryOp.operationNumber || 'N/A'} - {primaryOp.operationDescription}
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <h3 className="text-2xl font-bold text-metal-900 leading-none">OS {primaryOp.osCode || primaryOp.id}</h3>
+                                    {primaryOp.osSituation && (
+                                        <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border uppercase tracking-wider shadow-sm ${getSituationBadgeStyles(primaryOp.osSituation)}`}>
+                                            {primaryOp.osSituation}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-xs font-medium text-brand-slate-500 mt-1.5 flex items-center gap-1.5">
+                                    <span className="bg-metal-100 px-1.5 py-0.5 rounded text-metal-600 border border-metal-200">OP: {primaryOp.operationNumber || 'N/A'}</span>
+                                    <span>{primaryOp.operationDescription}</span>
                                 </div>
                             </div>
                         </div>
                         {primaryOp.status !== OperationStatus.MISTURA && (
-                            <div className={`px-3 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(primaryOp.status)}`}>{primaryOp.status}</div>
+                            <div className={`self-start px-3 py-1.5 rounded-full text-[10px] font-bold border uppercase tracking-wide shadow-sm ${getStatusColor(primaryOp.status)}`}>{primaryOp.status}</div>
                         )}
                     </div>
 
                     {/* Main Info Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pb-4 border-b border-gray-50">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-6 pb-6 border-b border-metal-100">
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Encarregado</span>
-                            <div className="flex items-center gap-1.5">
-                                <UserCog size={14} className="text-brand-blue-500" />
-                                <span className="text-xs font-bold text-gray-700 truncate">{supervisor?.name || 'Não atribuído'}</span>
+                            <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Encarregado</span>
+                            <div className="flex items-center gap-2">
+                                <UserCog size={16} className="text-brand-blue-500" />
+                                <span className="text-sm font-bold text-metal-700 truncate">{supervisor?.name || 'Não atribuído'}</span>
                             </div>
                         </div>
 
                         <div className="flex flex-col">
-                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Localização</span>
-                             <div className="flex items-center gap-1.5">
-                                <MapPin size={14} className="text-purple-500" />
-                                <span className="text-xs font-bold text-gray-700 truncate">{location ? `Setor ${location.id}` : '-'}</span>
-                             </div>
-                        </div>
-
-                         <div className="flex flex-col">
-                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Seção</span>
-                             <div className="flex items-center gap-1.5">
-                                <LayoutGrid size={14} className="text-indigo-500" />
-                                <span className="text-xs font-bold text-gray-700 truncate">{section ? section.name : '-'}</span>
+                             <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Localização</span>
+                             <div className="flex items-center gap-2">
+                                <MapPin size={16} className="text-neon-purple" />
+                                <span className="text-sm font-bold text-metal-700 truncate">{location ? `Setor ${location.id}` : '-'}</span>
                              </div>
                         </div>
 
                         <div className="flex flex-col">
-                             <span className="text-[10px] text-gray-400 uppercase font-bold mb-1">Produção</span>
-                             <div className="flex items-center gap-1.5">
-                                <Sprout size={14} className="text-sugar-green-600" />
-                                <span className="text-xs font-bold text-gray-700">{productionValue ? productionValue.toLocaleString() : '-'} ha</span>
+                             <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Seção</span>
+                             <div className="flex items-center gap-2">
+                                <LayoutGrid size={16} className="text-indigo-500" />
+                                <span className="text-sm font-bold text-metal-700 truncate">{section ? section.name : '-'}</span>
+                             </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                             <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Produção</span>
+                             <div className="flex items-center gap-2">
+                                <Sprout size={16} className="text-sugar-green-600" />
+                                <span className="text-sm font-bold text-metal-700">{productionValue ? productionValue.toLocaleString() : '-'} ha</span>
+                             </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                             <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Emissão</span>
+                             <div className="flex items-center gap-2">
+                                <Calendar size={16} className="text-orange-500" />
+                                <span className="text-sm font-bold text-metal-700">{primaryOp.issueDate || '-'}</span>
+                             </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                             <span className="text-[10px] text-brand-slate-400 uppercase font-bold mb-1.5 tracking-wider">Dias em Aberto</span>
+                             <div className="flex items-center gap-2">
+                                <AlertCircle size={16} className="text-red-400" />
+                                <span className="text-sm font-bold text-metal-700">{primaryOp.osAge ? `${primaryOp.osAge} dias` : '-'}</span>
                              </div>
                         </div>
                     </div>
 
                     {/* Products Table */}
-                    <div className="mb-4 bg-gray-50 rounded-xl p-3">
-                        <h4 className="text-xs font-bold text-brand-slate uppercase mb-2 flex items-center gap-1">
-                            <FlaskConical size={14}/> Produtos
+                    <div className="mb-6 bg-metal-50/50 rounded-2xl p-4 border border-metal-100 shadow-inner">
+                        <h4 className="text-xs font-bold text-brand-slate-500 uppercase mb-3 flex items-center gap-2 tracking-wider">
+                            <FlaskConical size={16} className="text-brand-blue-500"/> Produtos
                         </h4>
                         <div className="space-y-2">
                              {group.map((item) => {
                                 const res = resources.find(r => r.id === item.resourceId);
                                 return (
-                                    <div key={item.id} className="flex justify-between items-center text-xs border-b border-gray-200 last:border-0 pb-1 last:pb-0">
-                                        <span className="font-medium text-gray-800">{res?.name || item.resourceName || '-'}</span>
-                                        <div className="flex gap-3 text-gray-600">
-                                            <span>{item.flowRate > 0 ? `${item.flowRate} L/ha` : '-'}</span>
-                                            <span className="font-bold">{item.targetVolume} L</span>
+                                    <div key={item.id} className="flex justify-between items-center text-sm border-b border-metal-200 last:border-0 pb-2 last:pb-0">
+                                        <span className="font-medium text-metal-800">{res?.name || item.resourceName || '-'}</span>
+                                        <div className="flex gap-4 text-metal-600">
+                                            <span className="bg-white px-2 py-0.5 rounded border border-metal-200 text-xs font-mono">{item.flowRate > 0 ? `${item.flowRate} L/ha` : '-'}</span>
+                                            <span className="font-bold text-metal-900">{item.targetVolume} L</span>
                                         </div>
                                     </div>
                                 );
@@ -736,24 +873,26 @@ export const OperationsModule: React.FC = () => {
                     </div>
 
                     {/* Progress / Footer */}
-                    <div className="bg-white">
-                        <div className="flex flex-col gap-2">
+                    <div className="bg-transparent">
+                        <div className="flex flex-col gap-3">
                             <div className="flex justify-between items-end">
-                                 <p className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
-                                    <TrendingUp size={14} /> Entregas ({allVolumes.filter(v => v.isDelivered).length}/{allVolumes.length})
+                                 <p className="text-xs font-bold text-brand-slate-400 uppercase flex items-center gap-1.5 tracking-wider">
+                                    <TrendingUp size={16} className="text-brand-blue-500" /> Entregas ({allVolumes.filter(v => v.isDelivered).length}/{allVolumes.length})
                                 </p>
-                                <div className="text-right">
-                                    <span className="text-xs text-gray-500 mr-2">{totalRealizedVolume.toLocaleString()} / {totalTargetVolume.toLocaleString()} L</span>
-                                    <span className={`text-xl font-bold ${progress >= 100 ? 'text-sugar-green-600' : 'text-gray-900'}`}>{progress.toFixed(0)}%</span>
+                                <div className="text-right flex items-baseline gap-2">
+                                    <span className="text-xs font-medium text-metal-500">{totalRealizedVolume.toLocaleString()} / {totalTargetVolume.toLocaleString()} L</span>
+                                    <span className={`text-2xl font-black ${progress >= 100 ? 'text-sugar-green-600 drop-shadow-sm' : 'text-metal-900'}`}>{progress.toFixed(0)}%</span>
                                 </div>
                             </div>
                         
-                            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                                <div className={`h-3 rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-sugar-green-500' : 'bg-brand-blue-500'}`} style={{ width: `${progress}%` }}></div>
+                            <div className="w-full bg-metal-100 rounded-full h-3 overflow-hidden shadow-inner border border-metal-200">
+                                <div className={`h-full rounded-full transition-all duration-700 ease-out shadow-lg ${progress >= 100 ? 'bg-gradient-to-r from-sugar-green-400 to-sugar-green-600' : 'bg-gradient-to-r from-brand-blue-400 to-brand-blue-600'}`} style={{ width: `${progress}%` }}>
+                                    <div className="w-full h-full bg-white/20 animate-pulse-slow"></div>
+                                </div>
                             </div>
 
                             {/* Trip Cards Horizontal Scroll */}
-                            <div className="flex overflow-x-auto gap-3 py-3 no-scrollbar">
+                            <div className="flex overflow-x-auto gap-4 py-4 no-scrollbar pb-2">
                                 {allVolumes.map((vol, index) => {
                                     const isDelivered = !!vol.isDelivered;
                                     const displayLabel = vol.statusLabel || (isDelivered ? "ENTREGUE" : "DISPONIVEL");
@@ -762,16 +901,16 @@ export const OperationsModule: React.FC = () => {
                                     return (
                                         <div 
                                             key={vol.id} 
-                                            className={`flex-none w-36 flex flex-col items-center justify-between border p-3 rounded-xl transition ${styles.container}`}
+                                            className={`flex-none w-40 flex flex-col items-center justify-between border p-4 rounded-2xl transition-all duration-300 ${styles.container} shadow-sm hover:shadow-md hover:-translate-y-1`}
                                         >
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase">{index + 1}ª Carga</span>
-                                            <span className={`text-lg font-extrabold my-2 ${styles.text}`}>
+                                            <span className="text-[10px] font-bold text-metal-500 uppercase tracking-wider">{index + 1}ª Carga</span>
+                                            <span className={`text-xl font-black my-2 tracking-tight ${styles.text}`}>
                                                 {vol.liters.toLocaleString('pt-BR')}L
                                             </span>
                                             
                                             <button 
                                                 onClick={() => handleToggleTripStatus(vol.opId, vol.id)}
-                                                className={`text-[9px] px-2 py-1.5 rounded-md w-full transition ${styles.button}`}
+                                                className={`text-[10px] font-bold uppercase tracking-wide px-3 py-2 rounded-xl w-full transition-all shadow-sm hover:shadow-md active:scale-95 ${styles.button}`}
                                             >
                                                 {displayLabel}
                                             </button>
@@ -781,9 +920,18 @@ export const OperationsModule: React.FC = () => {
                             </div>
                         </div>
                         
-                        <div className="mt-4 pt-3 border-t border-gray-50 flex justify-end">
-                            <button onClick={() => handleEdit(primaryOp)} className="flex items-center gap-2 text-sugar-green-700 hover:text-sugar-green-800 font-bold text-sm bg-white hover:bg-green-50 px-4 py-2 rounded-xl transition border border-green-200 shadow-sm">
+                        <div className="mt-6 pt-6 border-t border-metal-100 flex justify-end gap-3">
+                            <button 
+                                onClick={() => handleEditOp(primaryOp)}
+                                className="text-brand-blue-600 hover:text-brand-blue-800 hover:bg-brand-blue-50 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                            >
                                 <Edit2 size={16} /> Editar
+                            </button>
+                             <button 
+                                onClick={() => handleDeleteGroup(osKey)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                            >
+                                <Trash2 size={16} /> Excluir
                             </button>
                         </div>
                     </div>

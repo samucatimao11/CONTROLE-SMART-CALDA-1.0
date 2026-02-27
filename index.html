@@ -18,36 +18,78 @@
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              // Custom Palette
+              // Metallic / Futuristic Palette
+              'metal': {
+                50: '#f8fafc',
+                100: '#f1f5f9',
+                200: '#e2e8f0',
+                300: '#cbd5e1',
+                400: '#94a3b8',
+                500: '#64748b',
+                600: '#475569',
+                700: '#334155',
+                800: '#1e293b',
+                900: '#0f172a',
+                950: '#020617',
+              },
               'brand-blue': {
-                DEFAULT: '#052D51', // Dark Blue
-                50: '#eef4f9',
-                100: '#cfdfea',
-                500: '#052D51',
-                900: '#02182b'
+                DEFAULT: '#15803d', // Dark Green (was Deep Metal Blue)
+                50: '#f0fdf4',      // Green 50
+                100: '#dcfce7',     // Green 100
+                200: '#bbf7d0',     // Green 200
+                500: '#22c55e',     // Neon Green (Logo Color)
+                600: '#16a34a',     // Green 600
+                700: '#15803d',     // Green 700
+                900: '#14532d'      // Green 900
               },
               'brand-slate': {
-                DEFAULT: '#4B5F73', // Grey Blue
-                50: '#f5f7f9',
-                500: '#4B5F73'
+                DEFAULT: '#94a3b8', // Metallic Grey
+                50: '#f8fafc',
+                500: '#64748b'
               },
               'brand-yellow': {
-                 DEFAULT: '#EABA00', // Amber/Yellow
-                 100: '#fdf8d9',
-                 500: '#EABA00'
+                 DEFAULT: '#fbbf24', // Gold
+                 100: '#fef3c7',
+                 500: '#d97706' // Dark Gold
               },
-              // Overriding the existing green utility to match #76B72A
               'sugar-green': {
-                50: '#f4fce8',
-                100: '#e4f7cd',
-                200: '#cbee9f',
-                300: '#aee06e',
-                400: '#94d145',
-                500: '#84cc32', 
-                600: '#76B72A', // MAIN BRAND GREEN
-                700: '#5d9320',
-                800: '#4a751e',
-                900: '#3d601d', 
+                50: '#f0fdf4',
+                100: '#dcfce7',
+                500: '#22c55e', // Neon Green
+                600: '#16a34a',
+                700: '#15803d',
+              },
+              'neon-cyan': '#22c55e', // Changed to Green to match theme
+              'neon-purple': '#8b5cf6',
+            },
+            backgroundImage: {
+              'metal-gradient': 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)',
+              'metal-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              'glass': 'linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
+            },
+            boxShadow: {
+              'glow': '0 0 15px rgba(34, 197, 94, 0.4)', // Green Glow
+              'glow-green': '0 0 15px rgba(34, 197, 94, 0.3)',
+              'metal': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+              'fade-out': 'fadeOut 0.5s ease-out forwards',
+              'zoom-in': 'zoomIn 1s ease-out forwards',
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeOut: {
+                '0%': { opacity: '1' },
+                '100%': { opacity: '0' },
+              },
+              zoomIn: {
+                '0%': { transform: 'scale(0.95)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
               }
             }
           }
@@ -77,8 +119,10 @@
   body { -webkit-tap-highlight-color: transparent; }
   input, select, button { outline: none; }
 </style>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-gray-50 text-gray-900 antialiased selection:bg-brand-blue-100 selection:text-brand-blue-900">
     <div id="root"></div>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

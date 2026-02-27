@@ -9,16 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "uuid": "9.0.1",
-    "lucide-react": "0.344.0",
-    "xlsx": "latest",
+    "@vitejs/plugin-react": "^5.1.2",
     "jspdf": "2.5.1",
     "jspdf-autotable": "3.8.2",
-    "recharts": "2.12.7",
-    "@vitejs/plugin-react": "^5.1.2",
-    "vite": "^7.3.1"
+    "lucide-react": "0.344.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "^2.15.0",
+    "uuid": "9.0.1",
+    "vite": "^7.3.1",
+    "xlsx": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

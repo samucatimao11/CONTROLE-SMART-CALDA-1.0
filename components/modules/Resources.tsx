@@ -68,11 +68,11 @@ export const ResourcesModule: React.FC = () => {
               <tr key={r.id}>
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">{r.id}</td>
                 <td className="px-6 py-4 text-sm text-gray-700 flex items-center gap-2">
-                    <FlaskConical size={14} className="text-blue-500"/>
+                    <FlaskConical size={14} className="text-sugar-green-500"/>
                     {r.name}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button onClick={() => handleEdit(r)}><Edit2 size={16} className="text-gray-500 hover:text-blue-600" /></button>
+                  <button onClick={() => handleEdit(r)}><Edit2 size={16} className="text-gray-500 hover:text-sugar-green-600" /></button>
                 </td>
               </tr>
             ))}

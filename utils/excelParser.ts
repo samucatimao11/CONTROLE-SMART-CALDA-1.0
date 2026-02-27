@@ -2,6 +2,28 @@ import * as XLSX from 'xlsx';
 import { Driver, Supervisor, Truck, Location, Shift, Operation, OperationStatus, Resource, Section, OperationVolume } from '../types';
 import { DataService } from '../services/dataService';
 
+// Helper to convert Excel Serial Date to JS Date String (DD/MM/YYYY)
+const formatExcelDate = (serial: any): string => {
+  if (!serial) return '';
+  
+  // Se já for string com barras, retorna como está
+  if (typeof serial === 'string' && serial.includes('/')) return serial;
+
+  // Se for número serial (ex: 46024)
+  const serialNum = parseFloat(serial);
+  if (!isNaN(serialNum)) {
+    // 25569 é o offset de dias entre 1/1/1900 (Excel) e 1/1/1970 (JS)
+    const date = new Date(Math.round((serialNum - 25569) * 86400 * 1000));
+    // Ajuste de fuso horário/data para garantir dia correto
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  return String(serial);
+};
+
 export const ExcelParser = {
   readFileSystem: async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -58,7 +80,6 @@ export const ExcelParser = {
           const tripStatusMap = new Map<string, string>();
           
           // --- 1. PRE-PARSE SHEET 2 (Planilha 2 - Horizontal Structure) ---
-          // Expects columns like: ORDEM DE SERVIÇO, 1º CARGA, 2º CARGA...
           if (workbook.SheetNames.length > 1) {
              const sheet2Name = workbook.SheetNames[1]; // Planilha 2
              const sheet2 = workbook.Sheets[sheet2Name];
@@ -91,16 +112,15 @@ export const ExcelParser = {
                         capacity: capVal > 0 ? capVal : existingMeta.capacity 
                     });
 
-                    // 2. Second Pass: Identify Horizontal Trip Columns (1º CARGA, 2º CARGA...)
+                    // 2. Second Pass: Identify Horizontal Trip Columns
                     for (const [key, val] of Object.entries(row)) {
                         const k = key.toLowerCase().trim(); // e.g. "1º carga"
                         const v = String(val).trim(); // e.g. "ENTREGUE"
 
-                        // Regex to find "1º carga", "2 carga", "3ª carga"
                         const match = k.match(/(\d+)[ºªo]?\s*carga/);
                         
                         if (match) {
-                            const tripIndex = parseInt(match[1]); // Extract 1, 2, 3...
+                            const tripIndex = parseInt(match[1]);
                             
                             let statusLabel = "SEM INFO.";
                             const statusLower = v.toLowerCase();
@@ -113,7 +133,6 @@ export const ExcelParser = {
                                 statusLabel = "SEM INFO.";
                             }
                             
-                            // Map Key: "OSCODE-TRIPINDEX" -> "STATUS"
                             tripStatusMap.set(`${osVal}-${tripIndex}`, statusLabel);
                         }
                     }
@@ -144,7 +163,6 @@ export const ExcelParser = {
              const osCode = String(row['C'] || ''); 
              
              if (osCode && opNum) {
-                // ... (Resource/Section/Location/Supervisor parsing remains same) ...
                 const resId = String(row['D'] || '');
                 const resName = String(row['E'] || '');
                 if (resId && !seenResourceIds.has(resId)) {
@@ -176,10 +194,21 @@ export const ExcelParser = {
                 const prod = parseFloat(String(row['L']).replace(',', '.')) || 0; 
                 const dose = parseFloat(String(row['M']).replace(',', '.')) || 0; 
                 const total = parseFloat(String(row['N']).replace(',', '.')) || 0; 
+                
+                // New Fields Parsing (Cols Q, R, S)
+                // Q = Data emissão (Convertendo Serial)
+                const issueDateRaw = row['Q'];
+                const issueDate = formatExcelDate(issueDateRaw);
+                
+                // R = Dias O.S
+                const osAgeRaw = String(row['R'] || '');
+                const osAge = osAgeRaw.includes(',') ? osAgeRaw.split(',')[0] : osAgeRaw;
+                
+                // S = Situação
+                const osSituation = String(row['S'] || '').trim();
 
                 const uniqueId = `${osCode}-${resId || index}`; 
 
-                // --- Extra Data Lookup ---
                 const extra = extraDataMap.get(osCode);
                 const appFlow = extra?.flow || 0; 
                 const truckCap = extra?.capacity || 0;
@@ -191,8 +220,6 @@ export const ExcelParser = {
 
                 // --- Auto Generate Trips ---
                 const generatedVolumes: OperationVolume[] = [];
-                
-                // Only generate if we haven't processed this OS yet to avoid duplicates
                 if (appTotal > 0 && truckCap > 0 && !processedOsForTrips.has(osCode)) {
                     let remaining = appTotal;
                     const todayStr = new Date().toISOString().split('T')[0];
@@ -202,12 +229,8 @@ export const ExcelParser = {
                     while (remaining > 0.1) {
                         const vol = Math.min(remaining, truckCap);
                         const roundedVol = Math.round(vol * 10) / 10;
-                        
-                        // Look up status in the horizontal map
                         const mapKey = `${osCode}-${tripCounter}`;
                         
-                        // Default to "SEM INFO." if column is missing or empty
-                        // Check if key exists in map
                         let statusLabel = "SEM INFO.";
                         if (tripStatusMap.has(mapKey)) {
                              statusLabel = tripStatusMap.get(mapKey)!;
@@ -246,6 +269,11 @@ export const ExcelParser = {
                   productionArea: prod,
                   flowRate: dose,
                   targetVolume: total,
+                  
+                  issueDate: issueDate,
+                  osAge: osAge,
+                  osSituation: osSituation,
+
                   applicationArea: prod,
                   applicationFlowRate: appFlow, 
                   applicationTotalVolume: parseFloat(appTotal.toFixed(2)),
@@ -265,7 +293,7 @@ export const ExcelParser = {
           supervisorsToSave.forEach(s => DataService.saveSupervisor(s));
           if (opsToSave.length > 0) DataService.saveOperationsBatch(opsToSave);
 
-          resolve(`Importação Atualizada!\n- ${opsToSave.length} linhas processadas\n- Status das cargas lidos horizontalmente da Planilha 2.`);
+          resolve(`Importação Atualizada!\n- ${opsToSave.length} linhas processadas\n- Datas formatadas.`);
         } catch (err) {
           console.error(err);
           reject(err);

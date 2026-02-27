@@ -8,28 +8,31 @@ import { EXCEL_URL } from '../../constants';
 
 type ViewState = 'overview' | 'list_view';
 
-// Updated Palette based on user request
+// Updated Palette based on user request (Metallic / Futuristic)
 const COLORS = {
-  completed: '#76B72A', // Green
-  inProgress: '#EABA00', // Yellow/Amber
-  pending: '#4B5F73',   // Slate Blue
-  barPrimary: '#052D51', // Dark Blue (Brand)
-  barSecondary: '#76B72A', // Green (Brand)
+  completed: '#22c55e', // Neon Green
+  inProgress: '#fbbf24', // Metallic Gold
+  pending: '#64748b',   // Metallic Slate
+  barPrimary: '#0ea5e9', // Electric Blue
+  barSecondary: '#22c55e', // Neon Green
   background: '#ffffff',
   text: '#1e293b',
-  grid: '#f1f5f9'
+  grid: '#e2e8f0'
 };
 
 // Custom Chart Tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl">
-        <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{label}</p>
-        <p className="text-brand-blue-900 font-bold text-sm flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].fill }}></span>
-          {payload[0].value} O.S.
-        </p>
+      <div className="bg-metal-900/90 backdrop-blur-md p-4 border border-white/10 shadow-glow rounded-xl text-white">
+        <p className="text-xs font-bold text-brand-slate-400 mb-2 uppercase tracking-wider border-b border-white/10 pb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+            <p key={index} className="font-bold text-sm flex items-center gap-2 mb-1 last:mb-0">
+                <span className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: entry.fill, color: entry.fill }}></span>
+                <span className="text-gray-200">{entry.name}:</span>
+                <span className="text-white font-mono">{entry.value} O.S.</span>
+            </p>
+        ))}
       </div>
     );
   }
@@ -66,9 +69,11 @@ export const DashboardModule: React.FC = () => {
   const handleSyncData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(EXCEL_URL);
+      // Adicionando timestamp para evitar cache do navegador e garantir download fresco
+      const response = await fetch(`${EXCEL_URL}?t=${new Date().getTime()}`);
+      
       if (!response.ok) {
-        throw new Error('Falha ao baixar planilha da nuvem.');
+        throw new Error(`Falha ao baixar planilha (${response.status} ${response.statusText})`);
       }
       
       const blob = await response.blob();
@@ -80,9 +85,9 @@ export const DashboardModule: React.FC = () => {
       const resultMsg = await ExcelParser.readOperations(file);
       refreshData();
       alert(resultMsg);
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao sincronizar dados. Verifique sua conexão.');
+    } catch (error: any) {
+      console.error("Erro de Sincronização:", error);
+      alert(`Erro ao sincronizar dados: ${error.message || 'Verifique sua conexão.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -192,17 +197,30 @@ export const DashboardModule: React.FC = () => {
   }, [groupedOperations, activeOSKeys]);
 
   const supervisorChartData = useMemo(() => {
-    const stats: Record<string, number> = {};
+    const activeStats: Record<string, number> = {};
+    const closedStats: Record<string, number> = {};
+    const allSupervisorIds = new Set<string>();
+
+    // Count Active
     activeOSKeys.forEach(key => {
         const group = groupedOperations[key];
         const primaryOp = group[0];
-        const supId = primaryOp.supervisorId;
-        const safeKey = supId ? String(supId).trim() : 'N/A';
-        stats[safeKey] = (stats[safeKey] || 0) + 1;
+        const supId = primaryOp.supervisorId ? String(primaryOp.supervisorId).trim() : 'N/A';
+        activeStats[supId] = (activeStats[supId] || 0) + 1;
+        allSupervisorIds.add(supId);
     });
 
-    return Object.entries(stats)
-        .map(([id, count]) => {
+    // Count Closed
+    classifiedGroups.completed.forEach(key => {
+        const group = groupedOperations[key];
+        const primaryOp = group[0];
+        const supId = primaryOp.supervisorId ? String(primaryOp.supervisorId).trim() : 'N/A';
+        closedStats[supId] = (closedStats[supId] || 0) + 1;
+        allSupervisorIds.add(supId);
+    });
+
+    return Array.from(allSupervisorIds)
+        .map(id => {
             const sup = supervisors.find(s => String(s.id).trim() === id);
             let displayName = id;
             if (sup) {
@@ -220,12 +238,14 @@ export const DashboardModule: React.FC = () => {
             return {
                 name: displayName,
                 fullName: sup ? sup.name : (id !== 'N/A' ? id : 'Não Atribuído'),
-                count
+                active: activeStats[id] || 0,
+                closed: closedStats[id] || 0,
+                total: (activeStats[id] || 0) + (closedStats[id] || 0)
             };
         })
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => b.total - a.total)
         .slice(0, 30);
-  }, [groupedOperations, supervisors, activeOSKeys]);
+  }, [groupedOperations, supervisors, activeOSKeys, classifiedGroups.completed]);
 
 
   // --- RENDER ---
@@ -235,27 +255,27 @@ export const DashboardModule: React.FC = () => {
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h3 className="text-2xl font-bold text-brand-blue-900 flex items-center gap-2">
-                         <div className="bg-brand-blue-500 p-2 rounded-lg text-white shadow-lg shadow-brand-blue-100">
+                    <h3 className="text-2xl font-bold text-metal-900 flex items-center gap-2">
+                         <div className="bg-gradient-to-br from-brand-blue-500 to-brand-blue-900 p-2 rounded-lg text-white shadow-glow">
                              <FlaskConical size={24} />
                          </div>
                          Status caldas O.S no periodo
                     </h3>
-                    <p className="text-brand-slate font-medium mt-1 text-sm">Monitoramento em tempo real de volumes e entregas.</p>
+                    <p className="text-brand-slate-500 font-medium mt-1 text-sm">Monitoramento em tempo real de volumes e entregas.</p>
                 </div>
                 
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={handleSyncData}
                         disabled={isLoading}
-                        className={`flex items-center gap-2 bg-white text-brand-slate border border-gray-200 hover:border-brand-blue-500 hover:text-brand-blue-500 font-semibold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
+                        className={`flex items-center gap-2 bg-white/50 backdrop-blur-sm text-metal-700 border border-metal-200 hover:border-brand-blue-500 hover:text-brand-blue-500 hover:shadow-glow font-semibold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
                     >
                         {isLoading ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
                         <span className="hidden md:inline text-sm">Sincronizar</span>
                     </button>
                     <button 
                          onClick={() => setViewState('list_view')}
-                         className="flex items-center gap-2 bg-brand-blue-500 hover:bg-brand-blue-900 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition-all duration-200"
+                         className="flex items-center gap-2 bg-gradient-to-r from-brand-blue-500 to-brand-blue-900 hover:to-brand-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg hover:shadow-glow transition-all duration-200"
                     >
                         <FileText size={18} /> 
                         <span className="text-sm">Ver Lista</span>
@@ -267,7 +287,7 @@ export const DashboardModule: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* Card 1: Total Programmed */}
-                <div className="relative group overflow-hidden bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 hover:border-brand-blue-500 transition-all duration-300">
+                <div className="relative group overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 hover:border-brand-blue-500/50 hover:shadow-glow transition-all duration-300">
                     <div className="absolute -right-6 -top-6 text-brand-blue-50 opacity-50 group-hover:scale-110 transition-transform duration-500">
                         <ClipboardList size={140} strokeWidth={1.5} />
                     </div>
@@ -276,21 +296,21 @@ export const DashboardModule: React.FC = () => {
                             <div className="p-2.5 bg-brand-blue-50 rounded-xl text-brand-blue-900">
                                 <ClipboardList size={24} />
                             </div>
-                            <span className="text-xs font-bold text-brand-slate uppercase tracking-wider">Total Programado</span>
+                            <span className="text-xs font-bold text-brand-slate-500 uppercase tracking-wider">Total Programado</span>
                         </div>
                         <div className="flex items-baseline gap-1">
-                             <h4 className="text-3xl font-extrabold text-gray-900">
+                             <h4 className="text-3xl font-extrabold text-metal-900">
                                 {volumeMetrics.totalProgrammed.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                             </h4>
-                            <span className="text-sm font-bold text-gray-400">L</span>
+                            <span className="text-sm font-bold text-brand-slate-400">L</span>
                         </div>
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-blue-500 to-brand-blue-900 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
                 </div>
 
                 {/* Card 2: Total Delivered */}
-                <div className="relative group overflow-hidden bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 hover:border-sugar-green-600 transition-all duration-300">
-                    <div className="absolute -right-6 -top-6 text-sugar-green-100 opacity-50 group-hover:scale-110 transition-transform duration-500">
+                <div className="relative group overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 hover:border-sugar-green-500/50 hover:shadow-glow-green transition-all duration-300">
+                    <div className="absolute -right-6 -top-6 text-sugar-green-50 opacity-50 group-hover:scale-110 transition-transform duration-500">
                          <CheckCircle2 size={140} strokeWidth={1.5} />
                     </div>
                     <div className="relative z-10">
@@ -298,20 +318,20 @@ export const DashboardModule: React.FC = () => {
                             <div className="p-2.5 bg-sugar-green-50 rounded-xl text-sugar-green-600">
                                 <CheckCircle2 size={24} />
                             </div>
-                            <span className="text-xs font-bold text-brand-slate uppercase tracking-wider">Total Entregue</span>
+                            <span className="text-xs font-bold text-brand-slate-500 uppercase tracking-wider">Total Entregue</span>
                         </div>
                         <div className="flex items-baseline gap-1">
-                             <h4 className="text-3xl font-extrabold text-gray-900">
+                             <h4 className="text-3xl font-extrabold text-metal-900">
                                 {volumeMetrics.totalDelivered.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                             </h4>
-                            <span className="text-sm font-bold text-gray-400">L</span>
+                            <span className="text-sm font-bold text-brand-slate-400">L</span>
                         </div>
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-sugar-green-500 to-sugar-green-700 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
                 </div>
 
                 {/* Card 3: Total Available */}
-                <div className="relative group overflow-hidden bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 hover:border-brand-yellow-500 transition-all duration-300">
+                <div className="relative group overflow-hidden bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 hover:border-brand-yellow-500/50 transition-all duration-300">
                     <div className="absolute -right-6 -top-6 text-brand-yellow-100 opacity-50 group-hover:scale-110 transition-transform duration-500">
                          <Clock size={140} strokeWidth={1.5} />
                     </div>
@@ -320,13 +340,13 @@ export const DashboardModule: React.FC = () => {
                             <div className="p-2.5 bg-brand-yellow-100 rounded-xl text-brand-yellow-500">
                                 <Clock size={24} />
                             </div>
-                            <span className="text-xs font-bold text-brand-slate uppercase tracking-wider">Disponível à Entregar</span>
+                            <span className="text-xs font-bold text-brand-slate-500 uppercase tracking-wider">Disponível à Entregar</span>
                         </div>
                         <div className="flex items-baseline gap-1">
-                             <h4 className="text-3xl font-extrabold text-gray-900">
+                             <h4 className="text-3xl font-extrabold text-metal-900">
                                 {volumeMetrics.totalAvailable.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                             </h4>
-                            <span className="text-sm font-bold text-gray-400">L</span>
+                            <span className="text-sm font-bold text-brand-slate-400">L</span>
                         </div>
                     </div>
                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-yellow-500 to-yellow-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
@@ -337,13 +357,13 @@ export const DashboardModule: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Donut Chart */}
-                <div className="lg:col-span-1 bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col h-[420px]">
+                <div className="lg:col-span-1 bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 flex flex-col h-[420px]">
                     <div className="mb-6">
-                        <h3 className="text-lg font-bold text-brand-blue-900 flex items-center gap-2">
-                            <PieIcon className="text-brand-slate" size={20} />
+                        <h3 className="text-lg font-bold text-metal-900 flex items-center gap-2">
+                            <PieIcon className="text-brand-slate-500" size={20} />
                             Status das O.S.
                         </h3>
-                        <p className="text-xs text-brand-slate mt-1 font-medium">Progresso das ordens ativas vs entregues</p>
+                        <p className="text-xs text-brand-slate-500 mt-1 font-medium">Progresso das ordens ativas vs entregues</p>
                     </div>
                     
                     <div className="w-full flex-1 relative">
@@ -362,7 +382,7 @@ export const DashboardModule: React.FC = () => {
                                         cornerRadius={6}
                                     >
                                         {statusChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.2)" strokeWidth={2} />
                                         ))}
                                     </Pie>
                                     <Tooltip content={<CustomTooltip />} />
@@ -371,7 +391,7 @@ export const DashboardModule: React.FC = () => {
                                         height={36} 
                                         iconType="circle" 
                                         iconSize={8}
-                                        wrapperStyle={{fontSize: '12px', fontWeight: 600, color: '#4B5F73'}} 
+                                        wrapperStyle={{fontSize: '12px', fontWeight: 600, color: '#64748b'}} 
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -382,10 +402,10 @@ export const DashboardModule: React.FC = () => {
                          {statusChartData.length > 0 && (
                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-10">
                                  <div className="text-center">
-                                     <span className="text-5xl font-bold text-gray-800 tracking-tight">
+                                     <span className="text-5xl font-bold text-metal-800 tracking-tight">
                                          {statusChartData.reduce((acc, curr) => acc + curr.value, 0)}
                                      </span>
-                                     <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Total</span>
+                                     <span className="block text-xs font-bold text-brand-slate-400 uppercase tracking-widest mt-1">Total</span>
                                  </div>
                              </div>
                          )}
@@ -393,13 +413,13 @@ export const DashboardModule: React.FC = () => {
                 </div>
 
                 {/* Operations Bar Chart */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col h-[420px]">
+                <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 flex flex-col h-[420px]">
                      <div className="mb-4">
-                        <h3 className="text-lg font-bold text-brand-blue-900 flex items-center gap-2">
-                            <Cog className="text-brand-slate" size={20} />
+                        <h3 className="text-lg font-bold text-metal-900 flex items-center gap-2">
+                            <Cog className="text-brand-slate-500" size={20} />
                             O.S. Ativas por Operação
                         </h3>
-                        <p className="text-xs text-brand-slate mt-1 font-medium">Volume por tipo de atividade</p>
+                        <p className="text-xs text-brand-slate-500 mt-1 font-medium">Volume por tipo de atividade</p>
                     </div>
                     
                     <div className="w-full flex-1">
@@ -412,7 +432,7 @@ export const DashboardModule: React.FC = () => {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.grid} />
                                 <XAxis 
                                     dataKey="name" 
-                                    tick={{fontSize: 11, fill: '#4B5F73', fontWeight: 500}} 
+                                    tick={{fontSize: 11, fill: '#64748b', fontWeight: 500}} 
                                     axisLine={false} 
                                     tickLine={false} 
                                     dy={10}
@@ -420,13 +440,13 @@ export const DashboardModule: React.FC = () => {
                                 <YAxis 
                                     allowDecimals={false} 
                                     width={30} 
-                                    tick={{fontSize: 11, fill: '#4B5F73'}} 
+                                    tick={{fontSize: 11, fill: '#64748b'}} 
                                     axisLine={false} 
                                     tickLine={false}
                                 />
-                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc', radius: 4}} />
+                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f1f5f9', radius: 4}} />
                                 <Bar dataKey="count" fill={COLORS.barPrimary} radius={[4, 4, 0, 0]}>
-                                    <LabelList dataKey="count" position="top" fill="#4B5F73" fontSize={11} fontWeight={600} offset={5} />
+                                    <LabelList dataKey="count" position="top" fill="#64748b" fontSize={11} fontWeight={600} offset={5} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -436,13 +456,13 @@ export const DashboardModule: React.FC = () => {
             </div>
 
             {/* Supervisors Bar Chart */}
-            <div className="bg-white p-6 rounded-3xl shadow-[0_2px_20px_rgb(0,0,0,0.04)] border border-gray-100 flex flex-col h-[500px]">
+            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-white/20 flex flex-col h-[500px]">
                 <div className="mb-4">
-                    <h3 className="text-lg font-bold text-brand-blue-900 flex items-center gap-2">
-                        <UserCog className="text-brand-slate" size={20} />
-                        O.S. Ativas por Encarregado
+                    <h3 className="text-lg font-bold text-metal-900 flex items-center gap-2">
+                        <UserCog className="text-brand-slate-500" size={20} />
+                        O.S. Ativas vs Encerradas por Encarregado
                     </h3>
-                    <p className="text-xs text-brand-slate mt-1 font-medium">Volume de trabalho pendente por equipe</p>
+                    <p className="text-xs text-brand-slate-500 mt-1 font-medium">Comparativo de volume de trabalho por equipe</p>
                 </div>
 
                 <div className="w-full flex-1">
@@ -451,12 +471,12 @@ export const DashboardModule: React.FC = () => {
                             <BarChart
                                 data={supervisorChartData}
                                 margin={{ top: 20, right: 10, left: 0, bottom: 60 }}
-                                barSize={24}
+                                barSize={20}
                             >
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.grid} />
                                 <XAxis 
                                     dataKey="name" 
-                                    tick={{fontSize: 10, angle: -45, textAnchor: 'end', fill: '#4B5F73', fontWeight: 500}} 
+                                    tick={{fontSize: 10, angle: -45, textAnchor: 'end', fill: '#64748b', fontWeight: 500}} 
                                     interval={0} 
                                     height={60}
                                     axisLine={false}
@@ -466,14 +486,14 @@ export const DashboardModule: React.FC = () => {
                                 <YAxis 
                                     allowDecimals={false} 
                                     width={30} 
-                                    tick={{fontSize: 11, fill: '#4B5F73'}} 
+                                    tick={{fontSize: 11, fill: '#64748b'}} 
                                     axisLine={false} 
                                     tickLine={false} 
                                 />
-                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc', radius: 4}} />
-                                <Bar dataKey="count" fill={COLORS.barSecondary} radius={[4, 4, 0, 0]}>
-                                    <LabelList dataKey="count" position="top" fill="#4B5F73" fontSize={10} fontWeight={600} offset={5} />
-                                </Bar>
+                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f1f5f9', radius: 4}} />
+                                <Legend verticalAlign="top" height={36} wrapperStyle={{ color: '#64748b' }} />
+                                <Bar dataKey="active" name="Ativas" fill={COLORS.inProgress} radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="closed" name="Encerradas" fill={COLORS.completed} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (

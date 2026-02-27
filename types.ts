@@ -80,6 +80,11 @@ export interface Operation {
   flowRate: number; // Dose do Produto (Col M) - Renamed concept in UI, keeps key for legacy
   targetVolume: number; // Total do Produto (Col N) - Renamed concept in UI
   
+  // New Fields from Excel Import (ERP Data)
+  issueDate?: string;    // Data de Emissão (Col O)
+  osAge?: string;        // Dias de O.S (Col P)
+  osSituation?: string;  // Situação da O.S (Col Q)
+
   // Application/Syrup Specific Data (The Tank/Mix) - INDEPENDENT FIELDS
   applicationArea?: number; // Area real da aplicação
   applicationFlowRate?: number; // Vazão da Calda (L/ha)
